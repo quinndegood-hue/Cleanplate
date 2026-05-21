@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'DM Sans', sans-serif; background: #0a0f0d; color: #e8ede9; min-height: 100vh; }
+
+nav {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 1.2rem 2rem; border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: rgba(10,15,13,0.95); position: sticky; top: 0; z-index: 100;
+}
+.logo { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800; color: #7ddb9e; letter-spacing: -0.5px; }
+.logo span { color: #e8ede9; }
+.nav-links { display: flex; gap: 2rem; }
+.nav-links a { color: rgba(232,237,233,0.6); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; }
+.nav-links a:hover { color: #7ddb9e; }
+.nav-cta { background: #7ddb9e; color: #0a0f0d; padding: 0.5rem 1.25rem; border-radius: 100px; font-size: 0.85rem; font-weight: 600; text-decoration: none; font-family: 'DM Sans', sans-serif; }
+
+.hero { padding: 5rem 2rem 4rem; text-align: center; max-width: 780px; margin: 0 auto; }
+.badge { display: inline-block; background: rgba(125,219,158,0.12); color: #7ddb9e; border: 1px solid rgba(125,219,158,0.3); padding: 0.35rem 1rem; border-radius: 100px; font-size: 0.8rem; font-weight: 500; margin-bottom: 1.5rem; letter-spacing: 0.5px; }
+h1 { font-family: 'Syne', sans-serif; font-size: clamp(2.4rem, 5vw, 3.8rem); font-weight: 800; line-height: 1.1; margin-bottom: 1.25rem; letter-spacing: -1px; }
+h1 em { color: #7ddb9e; font-style: normal; }
+.hero p { font-size: 1.1rem; color: rgba(232,237,233,0.65); max-width: 500px; margin: 0 auto 2rem; line-height: 1.7; }
+.hero-btns { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+.btn-primary { background: #7ddb9e; color: #0a0f0d; padding: 0.85rem 2rem; border-radius: 100px; font-size: 0.95rem; font-weight: 600; text-decoration: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.btn-secondary { background: transparent; color: #e8ede9; padding: 0.85rem 2rem; border-radius: 100px; font-size: 0.95rem; font-weight: 500; text-decoration: none; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+
+.search-section { padding: 0 2rem 4rem; max-width: 700px; margin: 0 auto; }
+.search-box { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 1.5rem; }
+.search-row { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+.search-input { flex: 1; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 0.75rem 1rem; color: #e8ede9; font-size: 0.95rem; font-family: 'DM Sans', sans-serif; outline: none; }
+.search-input::placeholder { color: rgba(232,237,233,0.35); }
+.search-input:focus { border-color: rgba(125,219,158,0.5); }
+.search-btn { background: #7ddb9e; color: #0a0f0d; border: none; padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; white-space: nowrap; }
+.filter-chips { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.chip { padding: 0.4rem 1rem; border-radius: 100px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: rgba(232,237,233,0.6); font-family: 'DM Sans', sans-serif; transition: all 0.2s; }
+.chip.active { background: rgba(125,219,158,0.15); color: #7ddb9e; border-color: rgba(125,219,158,0.4); }
+.chip:hover { border-color: rgba(125,219,158,0.4); color: #7ddb9e; }
+
+.results { padding: 0 2rem 4rem; max-width: 700px; margin: 0 auto; }
+.results-label { font-size: 0.8rem; color: rgba(232,237,233,0.4); margin-bottom: 1rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+.restaurant-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 1.25rem; transition: border-color 0.2s, background 0.2s; cursor: pointer; }
+.restaurant-card:hover { border-color: rgba(125,219,158,0.3); background: rgba(125,219,158,0.04); }
+.rest-icon { width: 46px; height: 46px; border-radius: 12px; background: rgba(125,219,158,0.1); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0; }
+.rest-info { flex: 1; }
+.rest-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem; }
+.rest-sub { font-size: 0.82rem; color: rgba(232,237,233,0.5); }
+.rest-tags { display: flex; gap: 0.4rem; margin-top: 0.5rem; flex-wrap: wrap; }
+.tag { font-size: 0.72rem; padding: 0.2rem 0.6rem; border-radius: 100px; font-weight: 500; }
+.tag-free { background: rgba(125,219,158,0.15); color: #7ddb9e; }
+.tag-warn { background: rgba(239,159,39,0.15); color: #EF9F27; }
+.tag-bad { background: rgba(226,75,74,0.15); color: #E24B4A; }
+.rest-score { text-align: right; flex-shrink: 0; }
+.score-num { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800; color: #7ddb9e; }
+.score-label { font-size: 0.72rem; color: rgba(232,237,233,0.4); }
+
+.features { padding: 4rem 2rem; background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.06); }
+.features-inner { max-width: 700px; margin: 0 auto; }
+.section-label { font-size: 0.78rem; color: #7ddb9e; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 0.75rem; }
+.section-title { font-family: 'Syne', sans-serif; font-size: 2rem; font-weight: 800; margin-bottom: 2.5rem; letter-spacing: -0.5px; }
+.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+.feature-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 1.25rem; }
+.feature-icon { font-size: 1.5rem; margin-bottom: 0.75rem; }
+.feature-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.95rem; margin-bottom: 0.4rem; }
+.feature-desc { font-size: 0.82rem; color: rgba(232,237,233,0.55); line-height: 1.6; }
+
+footer { padding: 2rem; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; }
+.footer-logo { font-family: 'Syne', sans-serif; font-size: 1.2rem; font-weight: 800; color: #7ddb9e; margin-bottom: 0.5rem; }
+.footer-sub { font-size: 0.82rem; color: rgba(232,237,233,0.35); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">Clean<span>Plate</span></div>
+  <div class="nav-links">
+    <a href="#">Search</a>
+    <a href="#">How it works</a>
+    <a href="#">Submit a restaurant</a>
+  </div>
+  <a href="#" class="nav-cta">Get the app</a>
+</nav>
+
+<div class="hero">
+  <div class="badge">🌿 Know what's actually in your food</div>
+  <h1>Find restaurants that <em>respect</em> your diet</h1>
+  <p>Search thousands of restaurants filtered by seed oils, gluten-free options, and more — so you can eat out without the guesswork.</p>
+  <div class="hero-btns">
+    <button class="btn-primary" onclick="document.querySelector('.search-section').scrollIntoView({behavior:'smooth'})">Search restaurants</button>
+    <button class="btn-secondary">How it works</button>
+  </div>
+</div>
+
+<div class="search-section">
+  <div class="search-box">
+    <div class="search-row">
+      <input class="search-input" type="text" placeholder="Restaurant name or location..." id="searchInput" />
+      <button class="search-btn" onclick="doSearch()">Search</button>
+    </div>
+    <div class="filter-chips">
+      <button class="chip active" onclick="toggleChip(this)">All</button>
+      <button class="chip" onclick="toggleChip(this)">🚫 No seed oils</button>
+      <button class="chip" onclick="toggleChip(this)">🌾 Gluten-free options</button>
+      <button class="chip" onclick="toggleChip(this)">🥩 Carnivore-friendly</button>
+      <button class="chip" onclick="toggleChip(this)">🌱 Dairy-free</button>
+    </div>
+  </div>
+</div>
+
+<div class="results">
+  <div class="results-label">Showing results near Fort Wayne, IN</div>
+
+  <div class="restaurant-card">
+    <div class="rest-icon">🥩</div>
+    <div class="rest-info">
+      <div class="rest-name">The Clover Grille</div>
+      <div class="rest-sub">American · 0.8 mi away</div>
+      <div class="rest-tags">
+        <span class="tag tag-free">No seed oils</span>
+        <span class="tag tag-free">Gluten-free menu</span>
+        <span class="tag tag-free">Grass-fed beef</span>
+      </div>
+    </div>
+    <div class="rest-score">
+      <div class="score-num">98</div>
+      <div class="score-label">Clean score</div>
+    </div>
+  </div>
+
+  <div class="restaurant-card">
+    <div class="rest-icon">🍜</div>
+    <div class="rest-info">
+      <div class="rest-name">Harvest Bowl Co.</div>
+      <div class="rest-sub">Healthy bowls · 1.2 mi away</div>
+      <div class="rest-tags">
+        <span class="tag tag-free">Gluten-free options</span>
+        <span class="tag tag-warn">Some seed oils</span>
+      </div>
+    </div>
+    <div class="rest-score">
+      <div class="score-num">74</div>
+      <div class="score-label">Clean score</div>
+    </div>
+  </div>
+
+  <div class="restaurant-card">
+    <div class="rest-icon">🌮</div>
+    <div class="rest-info">
+      <div class="rest-name">Sol Tacos</div>
+      <div class="rest-sub">Mexican · 2.1 mi away</div>
+      <div class="rest-tags">
+        <span class="tag tag-free">Gluten-free tortillas</span>
+        <span class="tag tag-bad">Uses seed oils</span>
+      </div>
+    </div>
+    <div class="rest-score">
+      <div class="score-num">61</div>
+      <div class="score-label">Clean score</div>
+    </div>
+  </div>
+
+  <div class="restaurant-card">
+    <div class="rest-icon">🥗</div>
+    <div class="rest-info">
+      <div class="rest-name">True Roots Kitchen</div>
+      <div class="rest-sub">Plant-based · 3.4 mi away</div>
+      <div class="rest-tags">
+        <span class="tag tag-free">No seed oils</span>
+        <span class="tag tag-free">Fully gluten-free</span>
+        <span class="tag tag-free">Dairy-free</span>
+      </div>
+    </div>
+    <div class="rest-score">
+      <div class="score-num">96</div>
+      <div class="score-label">Clean score</div>
+    </div>
+  </div>
+</div>
+
+<div class="features">
+  <div class="features-inner">
+    <div class="section-label">Why CleanPlate</div>
+    <div class="section-title">Actually know what you're eating</div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-title">Seed oil tracker</div>
+        <div class="feature-desc">We research which oils every restaurant cooks with so you don't have to ask.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌾</div>
+        <div class="feature-title">Gluten-free verified</div>
+        <div class="feature-desc">Filter for dedicated GF menus, not just restaurants that happen to have salad.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Clean score</div>
+        <div class="feature-desc">Every restaurant gets a score based on ingredients, oils, and diet compatibility.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📍</div>
+        <div class="feature-title">Near you, always</div>
+        <div class="feature-desc">Location-aware search shows the cleanest spots in your area first.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">CleanPlate</div>
+  <div class="footer-sub">Know what's in your food. Every time.</div>
+</footer>
+
+<script>
+function toggleChip(el) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+function doSearch() {
+  const val = document.getElementById('searchInput').value;
+  if (val) alert('Search coming soon! This is a demo.');
+}
+</script>
+
+</body>
+</html>
