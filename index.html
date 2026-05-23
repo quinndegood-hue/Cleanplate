@@ -406,11 +406,12 @@ const filterMap = {
   'dairy-free':   ['dairy-free'],
 };
 
-let activeFilter = 'all';
-let userCity     = null;
-let userLat      = null;
-let userLng      = null;
-let searchTimer = null;
+let activeFilter  = 'all';
+let userCity      = null;
+let userLat       = null;
+let userLng       = null;
+let searchTimer   = null;
+let locationKeyed = false;  // prevents blur from double-calling setLocation after Enter
 
 // ── Haversine distance (miles) ───────────────────────────────────────────────
 function haversine(lat1, lng1, lat2, lng2) {
@@ -529,12 +530,18 @@ function searchOverpass(query) {
   list.innerHTML = '';
 
   // Build an Overpass QL regex from the user's query:
-  // 1. Strip apostrophes/quotes (they're never typed but exist in OSM names like "McDonald's")
+  // 1. Strip apostrophes/quotes (they exist in OSM names like "McDonald's" but users don't type them)
   // 2. Escape remaining regex metacharacters
-  // 3. Allow an optional non-alphanumeric character between each pair of adjacent letters
+  // 3. Split on whitespace: words are joined with [^a-zA-Z0-9]+ so "chick fil a" matches "Chick-fil-A"
+  // 4. Within each word, allow an optional non-alphanumeric between adjacent letters
   //    so "mcdonalds" matches "McDonald's" (apostrophe sits between 'd' and 's' in OSM data)
   var stripped = query.replace(/['"]/g, '').replace(/[*+?^${}()|[\]\\]/g, '\\$&').trim();
-  var safe = stripped.replace(/([a-zA-Z0-9])(?=[a-zA-Z0-9])/g, '$1[^a-zA-Z0-9]?');
+  var safe = stripped
+    .split(/\s+/)
+    .map(function (word) {
+      return word.replace(/([a-zA-Z0-9])(?=[a-zA-Z0-9])/g, '$1[^a-zA-Z0-9]?');
+    })
+    .join('[^a-zA-Z0-9]+');
 
   var around = '(around:50000,' + userLat + ',' + userLng + ')';
   var oql =
@@ -596,7 +603,12 @@ function searchOverpass(query) {
         ' near ' + (userCity || 'your area')
       : '';
 
-    if (!items.length) { list.innerHTML = noResultsHTML(); return; }
+    if (!items.length) {
+      list.innerHTML = filterKeys
+        ? noResultsHTML('No rated results match that filter. Switch to <b>All</b> to see every restaurant nearby.')
+        : noResultsHTML();
+      return;
+    }
 
     list.innerHTML = items.map(function (item) {
       var distStr = item.dist !== null
@@ -642,11 +654,12 @@ function cardHTML(icon, name, sub, tags, score) {
   '</div>';
 }
 
-function noResultsHTML() {
+function noResultsHTML(hint) {
+  var msg = hint || 'Try a different search — or <a href="#" onclick="openSubmitModal(); return false;">submit one</a>!';
   return '<div class="no-results">' +
     '<div class="no-results-icon">🔍</div>' +
     '<h3>No restaurants found</h3>' +
-    '<p>Try a different search — or <a href="#" onclick="openSubmitModal(); return false;">submit one</a>!</p>' +
+    '<p>' + msg + '</p>' +
   '</div>';
 }
 
@@ -702,13 +715,22 @@ function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('
 function closeMenu()  { document.getElementById('mobileMenu').classList.remove('open'); }
 
 // ── Location ──────────────────────────────────────────────────────────────────
+function showLocationNotFound(typedCity) {
+  // Re-show the input with an error hint so the user knows to try a different term
+  document.getElementById('locationDisplay').textContent = '';
+  var inp = document.getElementById('locationInput');
+  inp.placeholder = 'Location not found — try again';
+  inp.style.display = 'inline-block';
+  inp.value = typedCity;
+  inp.focus(); inp.select();
+}
+
 function setLocation(city, lat, lng) {
-  userCity = city;
   document.getElementById('locationInput').style.display = 'none';
 
   if (lat !== undefined) {
-    // Coords already known (came from geolocation)
-    userLat = lat; userLng = lng;
+    // Coords already known (came from GPS geolocation or a previous successful geocode)
+    userCity = city; userLat = lat; userLng = lng;
     document.getElementById('locationDisplay').textContent = city;
     document.getElementById('locationEditBtn').style.display = 'inline';
     renderResults();
@@ -723,24 +745,24 @@ function setLocation(city, lat, lng) {
           { headers: { 'Accept-Language': 'en' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (data && data.length) {
-          userLat = parseFloat(data[0].lat);
-          userLng = parseFloat(data[0].lon);
-          // Use a clean label if Nominatim gives us better address parts
-          var a = data[0].address || {};
-          var niceName = (a.city || a.town || a.village || city);
-          var niceState = a.state_code || '';
-          userCity = niceName + (niceState ? ', ' + niceState : '');
+        if (!data || !data.length) {
+          // Nominatim found nothing — re-show input, don't claim success
+          showLocationNotFound(city);
+          return;
         }
+        userLat = parseFloat(data[0].lat);
+        userLng = parseFloat(data[0].lon);
+        var a = data[0].address || {};
+        var niceName = (a.city || a.town || a.village || city);
+        var niceState = a.state_code || '';
+        userCity = niceName + (niceState ? ', ' + niceState : '');
         document.getElementById('locationDisplay').textContent = userCity;
         document.getElementById('locationEditBtn').style.display = 'inline';
         renderResults();
       })
       .catch(function () {
-        // Geocoding failed — show the city name as-is, search still works for local DB
-        document.getElementById('locationDisplay').textContent = city;
-        document.getElementById('locationEditBtn').style.display = 'inline';
-        renderResults();
+        // Network error — re-show input so user can try again
+        showLocationNotFound(city);
       });
   }
 }
@@ -748,19 +770,25 @@ function showLocationInput() {
   document.getElementById('locationDisplay').textContent = '';
   document.getElementById('locationEditBtn').style.display = 'none';
   var input = document.getElementById('locationInput');
+  input.placeholder = 'Enter your city or ZIP...';
   input.style.display = 'inline-block';
   input.value = userCity || '';
   input.focus(); input.select();
 }
 function handleLocationKey(e) {
-  if (e.key === 'Enter')  { var v = e.target.value.trim(); if (v) setLocation(v); }
+  if (e.key === 'Enter') {
+    var v = e.target.value.trim();
+    if (v) { locationKeyed = true; setLocation(v); }
+  }
   if (e.key === 'Escape' && userCity) {
-    // Restore previous location — re-geocode if coords weren't resolved last time
+    locationKeyed = true;
     if (userLat !== null) setLocation(userCity, userLat, userLng);
     else setLocation(userCity);
   }
 }
 function handleLocationBlur() {
+  // Guard: Enter/Escape already handled in handleLocationKey; skip the blur that follows
+  if (locationKeyed) { locationKeyed = false; return; }
   var v = document.getElementById('locationInput').value.trim();
   if (v) {
     setLocation(v);
