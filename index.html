@@ -492,6 +492,22 @@ function renderLocalResults(query) {
   }).join('');
 }
 
+// ── Fetch from Overpass; auto-retry on backup server if primary fails ─────────
+function fetchOverpass(oql) {
+  var body = 'data=' + encodeURIComponent(oql);
+  var opts = { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body };
+  return fetch('https://overpass-api.de/api/interpreter', opts)
+    .then(function (r) {
+      if (!r.ok) throw new Error('non-2xx');
+      return r.json();
+    })
+    .catch(function () {
+      // Primary server down or rate-limited — try backup
+      return fetch('https://overpass.kumi.systems/api/interpreter', opts)
+        .then(function (r) { return r.json(); });
+    });
+}
+
 // ── Query OpenStreetMap via Overpass API, annotate with CleanPlate data ──────
 function searchOverpass(query) {
   var list  = document.getElementById('restaurantList');
@@ -512,25 +528,24 @@ function searchOverpass(query) {
   label.textContent = 'Searching…';
   list.innerHTML = '';
 
-  // Replace apostrophes/quotes/special regex chars with . (wildcard)
-  // so "McDonald's" safely matches "McDonald's" in Overpass QL
-  var safe = query.replace(/['"]/g, '.').replace(/[*+?^${}()|[\]\\]/g, '\\$&').trim();
+  // Build an Overpass QL regex from the user's query:
+  // 1. Strip apostrophes/quotes (they're never typed but exist in OSM names like "McDonald's")
+  // 2. Escape remaining regex metacharacters
+  // 3. Allow an optional non-alphanumeric character between each pair of adjacent letters
+  //    so "mcdonalds" matches "McDonald's" (apostrophe sits between 'd' and 's' in OSM data)
+  var stripped = query.replace(/['"]/g, '').replace(/[*+?^${}()|[\]\\]/g, '\\$&').trim();
+  var safe = stripped.replace(/([a-zA-Z0-9])(?=[a-zA-Z0-9])/g, '$1[^a-zA-Z0-9]?');
 
   var around = '(around:50000,' + userLat + ',' + userLng + ')';
   var oql =
-    '[out:json][timeout:15];' +
+    '[out:json][timeout:25];' +
     '(' +
       'node["amenity"~"restaurant|fast_food|cafe|bar"]["name"~"' + safe + '",i]' + around + ';' +
        'way["amenity"~"restaurant|fast_food|cafe|bar"]["name"~"' + safe + '",i]' + around + ';' +
     ');' +
     'out center 20;';
 
-  fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'data=' + encodeURIComponent(oql)
-  })
-  .then(function (r) { return r.json(); })
+  fetchOverpass(oql)
   .then(function (data) {
     var elements = data.elements || [];
     if (!elements.length) {
@@ -602,7 +617,7 @@ function searchOverpass(query) {
       '<div class="no-results">' +
         '<div class="no-results-icon">⚠️</div>' +
         '<h3>Search failed</h3>' +
-        '<p>The map server didn\'t respond. Try again in a moment.</p>' +
+        '<p>Both map servers timed out. Try again in a moment, or check your connection.</p>' +
       '</div>';
   });
 }
