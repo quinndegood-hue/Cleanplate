@@ -16,9 +16,15 @@ nav {
 .logo { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800; color: #7ddb9e; letter-spacing: -0.5px; }
 .logo span { color: #e8ede9; }
 .nav-links { display: flex; gap: 2rem; }
-.nav-links a { color: rgba(232,237,233,0.6); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; }
+.nav-links a { color: rgba(232,237,233,0.6); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; cursor: pointer; }
 .nav-links a:hover { color: #7ddb9e; }
 .nav-cta { background: #7ddb9e; color: #0a0f0d; padding: 0.5rem 1.25rem; border-radius: 100px; font-size: 0.85rem; font-weight: 600; text-decoration: none; font-family: 'DM Sans', sans-serif; }
+.hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; background: none; border: none; padding: 4px; }
+.hamburger span { display: block; width: 22px; height: 2px; background: #e8ede9; border-radius: 2px; transition: all 0.3s; }
+.mobile-menu { display: none; position: absolute; top: 100%; left: 0; right: 0; background: rgba(10,15,13,0.98); border-bottom: 1px solid rgba(255,255,255,0.08); padding: 1rem 2rem; flex-direction: column; gap: 0; }
+.mobile-menu.open { display: flex; }
+.mobile-menu a { color: rgba(232,237,233,0.7); text-decoration: none; font-size: 1rem; font-weight: 500; padding: 0.85rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); cursor: pointer; }
+.mobile-menu a:last-child { border-bottom: none; }
 
 .hero { padding: 5rem 2rem 4rem; text-align: center; max-width: 780px; margin: 0 auto; }
 .badge { display: inline-block; background: rgba(125,219,158,0.12); color: #7ddb9e; border: 1px solid rgba(125,219,158,0.3); padding: 0.35rem 1rem; border-radius: 100px; font-size: 0.8rem; font-weight: 500; margin-bottom: 1.5rem; letter-spacing: 0.5px; }
@@ -26,7 +32,8 @@ h1 { font-family: 'Syne', sans-serif; font-size: clamp(2.4rem, 5vw, 3.8rem); fon
 h1 em { color: #7ddb9e; font-style: normal; }
 .hero p { font-size: 1.1rem; color: rgba(232,237,233,0.65); max-width: 500px; margin: 0 auto 2rem; line-height: 1.7; }
 .hero-btns { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-.btn-primary { background: #7ddb9e; color: #0a0f0d; padding: 0.85rem 2rem; border-radius: 100px; font-size: 0.95rem; font-weight: 600; text-decoration: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.btn-primary { background: #7ddb9e; color: #0a0f0d; padding: 0.85rem 2rem; border-radius: 100px; font-size: 0.95rem; font-weight: 600; text-decoration: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: background 0.2s; }
+.btn-primary:hover { background: #6dcf8e; }
 .btn-secondary { background: transparent; color: #e8ede9; padding: 0.85rem 2rem; border-radius: 100px; font-size: 0.95rem; font-weight: 500; text-decoration: none; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; font-family: 'DM Sans', sans-serif; }
 
 .search-section { padding: 0 2rem 4rem; max-width: 700px; margin: 0 auto; }
@@ -35,18 +42,28 @@ h1 em { color: #7ddb9e; font-style: normal; }
 .search-input { flex: 1; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 0.75rem 1rem; color: #e8ede9; font-size: 0.95rem; font-family: 'DM Sans', sans-serif; outline: none; }
 .search-input::placeholder { color: rgba(232,237,233,0.35); }
 .search-input:focus { border-color: rgba(125,219,158,0.5); }
-.search-btn { background: #7ddb9e; color: #0a0f0d; border: none; padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; white-space: nowrap; }
+.search-btn { background: #7ddb9e; color: #0a0f0d; border: none; padding: 0.75rem 1.5rem; border-radius: 10px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; white-space: nowrap; transition: background 0.2s; }
+.search-btn:hover { background: #6dcf8e; }
 .filter-chips { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .chip { padding: 0.4rem 1rem; border-radius: 100px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: rgba(232,237,233,0.6); font-family: 'DM Sans', sans-serif; transition: all 0.2s; }
 .chip.active { background: rgba(125,219,158,0.15); color: #7ddb9e; border-color: rgba(125,219,158,0.4); }
 .chip:hover { border-color: rgba(125,219,158,0.4); color: #7ddb9e; }
 
+.location-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem; color: rgba(232,237,233,0.5); }
+.location-display { display: flex; align-items: center; gap: 0.4rem; }
+.location-edit { background: none; border: none; color: rgba(125,219,158,0.8); font-size: 0.78rem; cursor: pointer; font-family: 'DM Sans', sans-serif; padding: 0; text-decoration: underline; display: none; }
+.location-edit:hover { color: #7ddb9e; }
+.location-input { flex: 1; max-width: 220px; background: rgba(255,255,255,0.07); border: 1px solid rgba(125,219,158,0.4); border-radius: 8px; padding: 0.4rem 0.75rem; color: #e8ede9; font-size: 0.85rem; font-family: 'DM Sans', sans-serif; outline: none; display: none; }
+.location-input::placeholder { color: rgba(232,237,233,0.3); }
+.location-spinner { width: 12px; height: 12px; border: 2px solid rgba(125,219,158,0.2); border-top-color: #7ddb9e; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .results { padding: 0 2rem 4rem; max-width: 700px; margin: 0 auto; }
-.results-label { font-size: 0.8rem; color: rgba(232,237,233,0.4); margin-bottom: 1rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+.results-label { font-size: 0.8rem; color: rgba(232,237,233,0.4); margin-bottom: 1rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; min-height: 1.2em; }
 .restaurant-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 1.25rem; transition: border-color 0.2s, background 0.2s; cursor: pointer; }
 .restaurant-card:hover { border-color: rgba(125,219,158,0.3); background: rgba(125,219,158,0.04); }
 .rest-icon { width: 46px; height: 46px; border-radius: 12px; background: rgba(125,219,158,0.1); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0; }
-.rest-info { flex: 1; }
+.rest-info { flex: 1; min-width: 0; }
 .rest-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem; }
 .rest-sub { font-size: 0.82rem; color: rgba(232,237,233,0.5); }
 .rest-tags { display: flex; gap: 0.4rem; margin-top: 0.5rem; flex-wrap: wrap; }
@@ -57,6 +74,12 @@ h1 em { color: #7ddb9e; font-style: normal; }
 .rest-score { text-align: right; flex-shrink: 0; }
 .score-num { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800; color: #7ddb9e; }
 .score-label { font-size: 0.72rem; color: rgba(232,237,233,0.4); }
+
+.no-results { text-align: center; padding: 3rem 1rem; }
+.no-results-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+.no-results h3 { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700; color: rgba(232,237,233,0.7); margin-bottom: 0.5rem; }
+.no-results p { font-size: 0.88rem; color: rgba(232,237,233,0.4); }
+.no-results a { color: #7ddb9e; text-decoration: none; }
 
 .features { padding: 4rem 2rem; background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.06); }
 .features-inner { max-width: 700px; margin: 0 auto; }
@@ -71,6 +94,63 @@ h1 em { color: #7ddb9e; font-style: normal; }
 footer { padding: 2rem; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; }
 .footer-logo { font-family: 'Syne', sans-serif; font-size: 1.2rem; font-weight: 800; color: #7ddb9e; margin-bottom: 0.5rem; }
 .footer-sub { font-size: 0.82rem; color: rgba(232,237,233,0.35); }
+
+/* Submit modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 1rem; backdrop-filter: blur(4px); }
+.modal-overlay.open { display: flex; }
+.modal { background: #111a15; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 2rem; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
+.modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
+.modal-title { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800; }
+.modal-close { background: none; border: none; color: rgba(232,237,233,0.5); font-size: 1.5rem; cursor: pointer; line-height: 1; padding: 4px; transition: color 0.2s; }
+.modal-close:hover { color: #e8ede9; }
+.form-group { margin-bottom: 1.25rem; }
+.form-label { display: block; font-size: 0.85rem; font-weight: 500; color: rgba(232,237,233,0.7); margin-bottom: 0.5rem; }
+.form-input, .form-select, .form-textarea { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 0.75rem 1rem; color: #e8ede9; font-size: 0.9rem; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; }
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: rgba(125,219,158,0.5); }
+.form-input::placeholder, .form-textarea::placeholder { color: rgba(232,237,233,0.3); }
+.form-select { appearance: none; cursor: pointer; }
+.form-select option { background: #111a15; }
+.form-textarea { resize: vertical; min-height: 80px; }
+.form-checkboxes { display: flex; flex-direction: column; gap: 0.6rem; }
+.form-checkbox { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-size: 0.88rem; color: rgba(232,237,233,0.75); }
+.form-checkbox input { width: 16px; height: 16px; accent-color: #7ddb9e; cursor: pointer; flex-shrink: 0; }
+.form-submit { background: #7ddb9e; color: #0a0f0d; border: none; padding: 0.85rem 2rem; border-radius: 10px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 0.95rem; width: 100%; margin-top: 0.5rem; transition: background 0.2s; }
+.form-submit:hover { background: #6dcf8e; }
+.form-note { font-size: 0.78rem; color: rgba(232,237,233,0.35); text-align: center; margin-top: 0.75rem; }
+.submit-success { text-align: center; padding: 1.5rem 0; }
+.submit-success-icon { font-size: 3rem; margin-bottom: 1rem; }
+.submit-success h3 { font-family: 'Syne', sans-serif; font-size: 1.2rem; font-weight: 800; margin-bottom: 0.5rem; }
+.submit-success p { font-size: 0.88rem; color: rgba(232,237,233,0.6); line-height: 1.6; }
+
+/* Mobile */
+@media (max-width: 600px) {
+  nav { padding: 1rem 1.25rem; }
+  .nav-links, .nav-cta { display: none; }
+  .hamburger { display: flex; }
+
+  .hero { padding: 3rem 1.25rem 2.5rem; }
+  .hero p { font-size: 1rem; }
+  .hero-btns { flex-direction: column; align-items: center; }
+  .hero-btns .btn-primary, .hero-btns .btn-secondary { width: 100%; max-width: 280px; text-align: center; }
+
+  .search-section { padding: 0 1.25rem 2.5rem; }
+  .search-row { flex-direction: column; }
+  .search-btn { width: 100%; }
+
+  .results { padding: 0 1.25rem 2.5rem; }
+  .restaurant-card { padding: 1rem 1.1rem; gap: 0.9rem; }
+  .rest-icon { width: 40px; height: 40px; font-size: 1.2rem; }
+  .score-num { font-size: 1.2rem; }
+
+  .features { padding: 3rem 1.25rem; }
+  .section-title { font-size: 1.6rem; }
+  .features-grid { grid-template-columns: 1fr 1fr; }
+
+  .modal { padding: 1.5rem; border-radius: 16px; }
+}
+@media (max-width: 380px) {
+  .features-grid { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -78,11 +158,19 @@ footer { padding: 2rem; border-top: 1px solid rgba(255,255,255,0.06); text-align
 <nav>
   <div class="logo">Clean<span>Plate</span></div>
   <div class="nav-links">
-    <a href="#">Search</a>
-    <a href="#">How it works</a>
-    <a href="#">Submit a restaurant</a>
+    <a onclick="document.querySelector('.search-section').scrollIntoView({behavior:'smooth'})">Search</a>
+    <a onclick="document.querySelector('.features').scrollIntoView({behavior:'smooth'})">How it works</a>
+    <a onclick="openSubmitModal()">Submit a restaurant</a>
   </div>
   <a href="#" class="nav-cta">Get the app</a>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="mobile-menu" id="mobileMenu">
+    <a onclick="document.querySelector('.search-section').scrollIntoView({behavior:'smooth'}); closeMenu()">Search</a>
+    <a onclick="document.querySelector('.features').scrollIntoView({behavior:'smooth'}); closeMenu()">How it works</a>
+    <a onclick="openSubmitModal(); closeMenu()">Submit a restaurant</a>
+  </div>
 </nav>
 
 <div class="hero">
@@ -91,94 +179,35 @@ footer { padding: 2rem; border-top: 1px solid rgba(255,255,255,0.06); text-align
   <p>Search thousands of restaurants filtered by seed oils, gluten-free options, and more — so you can eat out without the guesswork.</p>
   <div class="hero-btns">
     <button class="btn-primary" onclick="document.querySelector('.search-section').scrollIntoView({behavior:'smooth'})">Search restaurants</button>
-    <button class="btn-secondary">How it works</button>
+    <button class="btn-secondary" onclick="document.querySelector('.features').scrollIntoView({behavior:'smooth'})">How it works</button>
   </div>
 </div>
 
 <div class="search-section">
   <div class="search-box">
     <div class="search-row">
-      <input class="search-input" type="text" placeholder="Restaurant name or location..." id="searchInput" />
-      <button class="search-btn" onclick="doSearch()">Search</button>
+      <input class="search-input" type="text" placeholder="Restaurant name or cuisine..." id="searchInput" oninput="renderResults()" />
+      <button class="search-btn" onclick="renderResults()">Search</button>
+    </div>
+    <div class="location-row">
+      <span>📍</span>
+      <span class="location-display" id="locationDisplay"><span class="location-spinner"></span> Detecting location...</span>
+      <button class="location-edit" id="locationEditBtn" onclick="showLocationInput()">change</button>
+      <input class="location-input" id="locationInput" type="text" placeholder="Enter your city or ZIP..." onkeydown="handleLocationKey(event)" onblur="handleLocationBlur()" />
     </div>
     <div class="filter-chips">
-      <button class="chip active" onclick="toggleChip(this)">All</button>
-      <button class="chip" onclick="toggleChip(this)">🚫 No seed oils</button>
-      <button class="chip" onclick="toggleChip(this)">🌾 Gluten-free options</button>
-      <button class="chip" onclick="toggleChip(this)">🥩 Carnivore-friendly</button>
-      <button class="chip" onclick="toggleChip(this)">🌱 Dairy-free</button>
+      <button class="chip active" data-filter="all" onclick="toggleChip(this)">All</button>
+      <button class="chip" data-filter="no-seed-oils" onclick="toggleChip(this)">🚫 No seed oils</button>
+      <button class="chip" data-filter="gluten-free" onclick="toggleChip(this)">🌾 Gluten-free options</button>
+      <button class="chip" data-filter="carnivore" onclick="toggleChip(this)">🥩 Carnivore-friendly</button>
+      <button class="chip" data-filter="dairy-free" onclick="toggleChip(this)">🌱 Dairy-free</button>
     </div>
   </div>
 </div>
 
 <div class="results">
-  <div class="results-label">Showing results near Fort Wayne, IN</div>
-
-  <div class="restaurant-card">
-    <div class="rest-icon">🥩</div>
-    <div class="rest-info">
-      <div class="rest-name">The Clover Grille</div>
-      <div class="rest-sub">American · 0.8 mi away</div>
-      <div class="rest-tags">
-        <span class="tag tag-free">No seed oils</span>
-        <span class="tag tag-free">Gluten-free menu</span>
-        <span class="tag tag-free">Grass-fed beef</span>
-      </div>
-    </div>
-    <div class="rest-score">
-      <div class="score-num">98</div>
-      <div class="score-label">Clean score</div>
-    </div>
-  </div>
-
-  <div class="restaurant-card">
-    <div class="rest-icon">🍜</div>
-    <div class="rest-info">
-      <div class="rest-name">Harvest Bowl Co.</div>
-      <div class="rest-sub">Healthy bowls · 1.2 mi away</div>
-      <div class="rest-tags">
-        <span class="tag tag-free">Gluten-free options</span>
-        <span class="tag tag-warn">Some seed oils</span>
-      </div>
-    </div>
-    <div class="rest-score">
-      <div class="score-num">74</div>
-      <div class="score-label">Clean score</div>
-    </div>
-  </div>
-
-  <div class="restaurant-card">
-    <div class="rest-icon">🌮</div>
-    <div class="rest-info">
-      <div class="rest-name">Sol Tacos</div>
-      <div class="rest-sub">Mexican · 2.1 mi away</div>
-      <div class="rest-tags">
-        <span class="tag tag-free">Gluten-free tortillas</span>
-        <span class="tag tag-bad">Uses seed oils</span>
-      </div>
-    </div>
-    <div class="rest-score">
-      <div class="score-num">61</div>
-      <div class="score-label">Clean score</div>
-    </div>
-  </div>
-
-  <div class="restaurant-card">
-    <div class="rest-icon">🥗</div>
-    <div class="rest-info">
-      <div class="rest-name">True Roots Kitchen</div>
-      <div class="rest-sub">Plant-based · 3.4 mi away</div>
-      <div class="rest-tags">
-        <span class="tag tag-free">No seed oils</span>
-        <span class="tag tag-free">Fully gluten-free</span>
-        <span class="tag tag-free">Dairy-free</span>
-      </div>
-    </div>
-    <div class="rest-score">
-      <div class="score-num">96</div>
-      <div class="score-label">Clean score</div>
-    </div>
-  </div>
+  <div class="results-label" id="resultsLabel"></div>
+  <div id="restaurantList"></div>
 </div>
 
 <div class="features">
@@ -215,15 +244,350 @@ footer { padding: 2rem; border-top: 1px solid rgba(255,255,255,0.06); text-align
   <div class="footer-sub">Know what's in your food. Every time.</div>
 </footer>
 
+<!-- Submit restaurant modal -->
+<div class="modal-overlay" id="submitModal" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div id="modalContent">
+      <div class="modal-header">
+        <div class="modal-title">Submit a restaurant</div>
+        <button class="modal-close" onclick="closeSubmitModal()">&#x2715;</button>
+      </div>
+      <form onsubmit="handleSubmit(event)">
+        <div class="form-group">
+          <label class="form-label">Restaurant name *</label>
+          <input class="form-input" type="text" placeholder="e.g. The Clover Grille" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location *</label>
+          <input class="form-input" type="text" placeholder="City, State or full address" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cuisine type</label>
+          <input class="form-input" type="text" placeholder="e.g. American, Mexican, Plant-based..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Seed oil usage *</label>
+          <select class="form-select" required>
+            <option value="" disabled selected>Select one...</option>
+            <option value="none">No seed oils used</option>
+            <option value="some">Some seed oils used</option>
+            <option value="yes">Uses seed oils</option>
+            <option value="unknown">Unknown / not sure</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dietary options available</label>
+          <div class="form-checkboxes">
+            <label class="form-checkbox"><input type="checkbox" /> Gluten-free menu or options</label>
+            <label class="form-checkbox"><input type="checkbox" /> Dairy-free options</label>
+            <label class="form-checkbox"><input type="checkbox" /> Carnivore-friendly</label>
+            <label class="form-checkbox"><input type="checkbox" /> Grass-fed / pasture-raised meats</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Additional notes</label>
+          <textarea class="form-textarea" placeholder="Anything else we should know? (e.g. specific dishes, sourcing info, menu URL)"></textarea>
+        </div>
+        <button type="submit" class="form-submit">Submit restaurant</button>
+        <p class="form-note">We review all submissions before publishing. Thank you for contributing!</p>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
+const restaurants = [
+  // Fort Wayne, IN
+  { icon:'🌿', name:'Tolon',                   city:'Fort Wayne, IN', lat:41.0768, lng:-85.1430, tags:[{key:'no-seed-oils',text:'No seed oils (duck fat)',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:91 },
+  { icon:'🥩', name:'BakerStreet Steakhouse',  city:'Fort Wayne, IN', lat:41.1108, lng:-85.1335, tags:[{key:'gluten-free',text:'Dedicated GF menu',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'},{key:'some-seed-oils',text:'Some seed oils',cls:'tag-warn'}], score:83 },
+  { icon:'🥗', name:'SMPL Kitchen',            city:'Fort Wayne, IN', lat:41.1503, lng:-85.1074, tags:[{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'},{key:'some-seed-oils',text:'Some seed oils',cls:'tag-warn'}], score:74 },
+  { icon:'🍜', name:'Sister Pho',              city:'Fort Wayne, IN', lat:41.0784, lng:-85.0945, tags:[{key:'gluten-free',text:'All pho GF',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'},{key:'some-seed-oils',text:'Some seed oils',cls:'tag-warn'}], score:73 },
+  { icon:'🌮', name:'Mercado',                 city:'Fort Wayne, IN', lat:41.0765, lng:-85.1436, tags:[{key:'gluten-free',text:'GF scratch kitchen',cls:'tag-free'},{key:'some-seed-oils',text:'Some seed oils',cls:'tag-warn'}], score:72 },
+  { icon:'🍽️',name:'Catablu Grille',          city:'Fort Wayne, IN', lat:41.0619, lng:-85.2157, tags:[{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'some-seed-oils',text:'Some seed oils',cls:'tag-warn'}], score:71 },
+  // New York, NY
+  { icon:'🍖', name:'Springbone Kitchen',      city:'New York, NY',   lat:40.7282, lng:-73.9991, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:89 },
+  { icon:'🥙', name:'Shukette',                city:'New York, NY',   lat:40.7458, lng:-74.0012, tags:[{key:'no-seed-oils',text:'EVOO only',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:86 },
+  { icon:'🍔', name:'Au Cheval NYC',           city:'New York, NY',   lat:40.7426, lng:-73.9929, tags:[{key:'no-seed-oils',text:'Beef tallow frying',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:88 },
+  { icon:'🍲', name:'Brodo',                   city:'New York, NY',   lat:40.7312, lng:-74.0054, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:91 },
+  { icon:'🫒', name:'Hearth',                  city:'New York, NY',   lat:40.7281, lng:-73.9827, tags:[{key:'no-seed-oils',text:'Beef tallow & olive oil',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:87 },
+  { icon:'🍕', name:'Una Pizza Napoletana',    city:'New York, NY',   lat:40.7217, lng:-73.9877, tags:[{key:'no-seed-oils',text:'EVOO only',cls:'tag-free'}], score:84 },
+  { icon:'🥗', name:'Locanut',                 city:'New York, NY',   lat:40.7549, lng:-73.9840, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'gluten-free',text:'Gluten-free',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:90 },
+  // Boston, MA
+  { icon:'🥙', name:'Saloniki Greek',          city:'Boston, MA',     lat:42.3508, lng:-71.1003, tags:[{key:'no-seed-oils',text:'EVOO only',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:84 },
+  { icon:'🫕', name:'Depth N Green',           city:'Boston, MA',     lat:42.3507, lng:-71.0821, tags:[{key:'no-seed-oils',text:'Ghee, butter & EVOO',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:88 },
+  { icon:'🐟', name:'Neptune Oyster',          city:'Boston, MA',     lat:42.3633, lng:-71.0561, tags:[{key:'no-seed-oils',text:'EVOO only',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:85 },
+  // Philadelphia, PA
+  { icon:'🔥', name:'Laser Wolf',              city:'Philadelphia, PA',lat:39.9733, lng:-75.1419, tags:[{key:'no-seed-oils',text:'EVOO & charcoal grill',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:87 },
+  { icon:'🥗', name:'Real Food Eatery',        city:'Philadelphia, PA',lat:39.9581, lng:-75.1816, tags:[{key:'no-seed-oils',text:'100% EVOO',cls:'tag-free'},{key:'gluten-free',text:'Fully gluten-free',cls:'tag-free'}], score:92 },
+  { icon:'🇱🇧', name:'Suraya',               city:'Philadelphia, PA',lat:39.9729, lng:-75.1401, tags:[{key:'no-seed-oils',text:'EVOO for all dishes',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:88 },
+  // Washington, DC
+  { icon:'🌿', name:'Green Zone DC',           city:'Washington, DC', lat:38.9147, lng:-77.0427, tags:[{key:'no-seed-oils',text:'Olive oil, ghee & butter',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:89 },
+  { icon:'🥢', name:'Roll Play',               city:'Washington, DC', lat:38.9014, lng:-77.0344, tags:[{key:'no-seed-oils',text:'Pure avocado oil',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:85 },
+  // Baltimore, MD
+  { icon:'🍷', name:'Le Comptoir du Vin',      city:'Baltimore, MD',  lat:39.3280, lng:-76.6421, tags:[{key:'no-seed-oils',text:'EVOO, butter & animal fats',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:87 },
+  // Pittsburgh, PA
+  { icon:'🥙', name:'Mezze',                   city:'Pittsburgh, PA', lat:40.4638, lng:-79.9362, tags:[{key:'no-seed-oils',text:'100% seed oil free',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:93 },
+  // Cleveland, OH
+  { icon:'🌿', name:'TownHall Cleveland',      city:'Cleveland, OH',  lat:41.4830, lng:-81.7023, tags:[{key:'no-seed-oils',text:'100% seed oil free',cls:'tag-free'},{key:'gluten-free',text:'Gluten-free menu',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:95 },
+  { icon:'🥤', name:'Green Farm Juicery',      city:'Cleveland, OH',  lat:41.4619, lng:-81.5760, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:90 },
+  // Columbus, OH
+  { icon:'🌿', name:'TownHall Columbus',       city:'Columbus, OH',   lat:39.9740, lng:-83.0015, tags:[{key:'no-seed-oils',text:'100% seed oil free',cls:'tag-free'},{key:'gluten-free',text:'Gluten-free menu',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:95 },
+  // Chicago, IL
+  { icon:'🍗', name:'Fry the Coop',            city:'Chicago, IL',    lat:41.9090, lng:-87.6749, tags:[{key:'no-seed-oils',text:'Beef tallow frying',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:88 },
+  { icon:'🥩', name:'The Publican',            city:'Chicago, IL',    lat:41.8864, lng:-87.6487, tags:[{key:'no-seed-oils',text:'Traditional animal fats',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:86 },
+  // Detroit, MI
+  { icon:'🍖', name:'Marrow',                  city:'Detroit, MI',    lat:42.3559, lng:-83.0251, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:85 },
+  // Minneapolis, MN
+  { icon:'🫖', name:'Tao Organic Café',        city:'Minneapolis, MN',lat:44.9476, lng:-93.2993, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:88 },
+  { icon:'🍜', name:'Nautical Bowls',          city:'Minneapolis, MN',lat:44.9826, lng:-93.2373, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:86 },
+  // St. Louis, MO
+  { icon:'💨', name:'Salt + Smoke',            city:'St. Louis, MO',  lat:38.6548, lng:-90.3300, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:87 },
+  // Kansas City, MO
+  { icon:'🥩', name:'Hereford House',          city:'Kansas City, MO',lat:39.2094, lng:-94.5516, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:85 },
+  // Nashville, TN
+  { icon:'🍗', name:"Arnold's Country Kitchen",city:'Nashville, TN',  lat:36.1587, lng:-86.7816, tags:[{key:'no-seed-oils',text:'Cooked in lard & butter',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:83 },
+  // Atlanta, GA
+  { icon:'🥗', name:'True Food Kitchen Atlanta',city:'Atlanta, GA',   lat:33.8490, lng:-84.3621, tags:[{key:'no-seed-oils',text:'Avocado & olive oils only',cls:'tag-free'},{key:'gluten-free',text:'GF menu',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:91 },
+  // Miami, FL
+  { icon:'🥗', name:'True Food Kitchen Miami', city:'Miami Beach, FL',lat:25.7907, lng:-80.1399, tags:[{key:'no-seed-oils',text:'Avocado & olive oils only',cls:'tag-free'},{key:'gluten-free',text:'GF menu',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:91 },
+  { icon:'🌊', name:'The Old Fish House',      city:'Grant, FL',      lat:27.9262, lng:-80.5415, tags:[{key:'no-seed-oils',text:'Tallow in fryer',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:84 },
+  // Houston, TX
+  { icon:'🫕', name:'Pondicheri',              city:'Houston, TX',    lat:29.7424, lng:-95.4140, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:89 },
+  { icon:'🥗', name:'True Food Kitchen Houston',city:'Houston, TX',   lat:29.7378, lng:-95.4595, tags:[{key:'no-seed-oils',text:'Avocado & olive oils only',cls:'tag-free'},{key:'gluten-free',text:'GF menu',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:91 },
+  { icon:'🍃', name:'Dish Society',            city:'Houston, TX',    lat:29.7601, lng:-95.5054, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:84 },
+  { icon:'🌾', name:'Leaf & Grain',            city:'Houston, TX',    lat:29.7525, lng:-95.4338, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:86 },
+  // Denver, CO
+  { icon:'🌿', name:"Western Daughters Kitchen",city:'Denver, CO',    lat:39.7543, lng:-105.0075, tags:[{key:'no-seed-oils',text:'100% seed oil free',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:93 },
+  { icon:'🍳', name:'Onefold',                 city:'Denver, CO',     lat:39.7448, lng:-104.9688, tags:[{key:'no-seed-oils',text:'Duck fat & lard, no seed oils',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:90 },
+  { icon:'🐂', name:'Wild Pastures Burger Co.',city:'Boulder, CO',    lat:40.0187, lng:-105.2757, tags:[{key:'no-seed-oils',text:'Grass-fed tallow only',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:91 },
+  { icon:'🍳', name:'The Buff Restaurant',     city:'Boulder, CO',    lat:40.0133, lng:-105.2706, tags:[{key:'no-seed-oils',text:'Beef tallow & avocado oil',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:89 },
+  // Phoenix / Scottsdale, AZ
+  { icon:'🥩', name:"Matt's Big Breakfast",    city:'Phoenix, AZ',    lat:33.4578, lng:-112.0675, tags:[{key:'no-seed-oils',text:'EVOO & butter',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:85 },
+  { icon:'🌿', name:'Sapiens Paleo Kitchen',   city:'Scottsdale, AZ', lat:33.4956, lng:-111.9236, tags:[{key:'no-seed-oils',text:'Olive, avocado & ghee only',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:94 },
+  { icon:'🥗', name:'True Food Kitchen Scottsdale',city:'Scottsdale, AZ',lat:33.5022,lng:-111.9261,tags:[{key:'no-seed-oils',text:'Avocado & olive oils only',cls:'tag-free'},{key:'gluten-free',text:'GF menu',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:91 },
+  { icon:'🥩', name:'The Ends',                city:'Scottsdale, AZ', lat:33.4937, lng:-111.9252, tags:[{key:'no-seed-oils',text:'Beef tallow & butter',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:88 },
+  // Las Vegas, NV
+  { icon:'🐂', name:'El Dorado Cantina',       city:'Las Vegas, NV',  lat:36.1278, lng:-115.1567, tags:[{key:'no-seed-oils',text:'Wagyu tallow & palm oil',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:87 },
+  { icon:'🥗', name:'True Food Kitchen Vegas', city:'Las Vegas, NV',  lat:36.1256, lng:-115.1710, tags:[{key:'no-seed-oils',text:'Avocado & olive oils only',cls:'tag-free'},{key:'gluten-free',text:'GF menu',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:91 },
+  // Los Angeles, CA
+  { icon:'🍯', name:'Honey Hi',                city:'Los Angeles, CA',lat:34.0824, lng:-118.2541, tags:[{key:'no-seed-oils',text:'Butter, avocado, coconut & olive',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:92 },
+  { icon:'🍟', name:'Oui Melrose',             city:'Los Angeles, CA',lat:34.0838, lng:-118.3532, tags:[{key:'no-seed-oils',text:'Beef tallow fries',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:87 },
+  { icon:'🍳', name:'Petit Trois',             city:'Los Angeles, CA',lat:34.0912, lng:-118.3391, tags:[{key:'no-seed-oils',text:'Duck fat & olive oil',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:88 },
+  { icon:'🌿', name:'Parakeet Café',           city:'Beverly Hills, CA',lat:34.0705,lng:-118.3994, tags:[{key:'no-seed-oils',text:'Avocado, coconut & olive only',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:91 },
+  { icon:'🌊', name:'Source Café',             city:'Hermosa Beach, CA',lat:33.8617,lng:-118.3989, tags:[{key:'no-seed-oils',text:'Coconut, olive & avocado oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:90 },
+  // San Diego, CA
+  { icon:'🌿', name:'GOODONYA Organic',        city:'Encinitas, CA',  lat:33.0370, lng:-117.2920, tags:[{key:'no-seed-oils',text:'100% seed oil free',cls:'tag-free'},{key:'gluten-free',text:'Fully gluten-free',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:96 },
+  { icon:'🫒', name:'Marisi',                  city:'La Jolla, CA',   lat:32.8455, lng:-117.2773, tags:[{key:'no-seed-oils',text:'Never uses seed oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:91 },
+  { icon:'🥗', name:'Parakeet Café La Jolla',  city:'La Jolla, CA',   lat:32.8550, lng:-117.2516, tags:[{key:'no-seed-oils',text:'Avocado, coconut & olive only',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:91 },
+  // Bay Area, CA
+  { icon:'🌿', name:'Kitava',                  city:'Oakland, CA',    lat:37.8341, lng:-122.2569, tags:[{key:'no-seed-oils',text:'Olive oil only',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free',cls:'tag-free'}], score:91 },
+  { icon:'🍺', name:'Park Street Tavern',       city:'Alameda, CA',    lat:37.7713, lng:-122.2437, tags:[{key:'no-seed-oils',text:'100% seed oil free',cls:'tag-free'},{key:'carnivore',text:'Grass-fed tallow',cls:'tag-free'}], score:92 },
+  // Seattle, WA
+  { icon:'☕', name:'5 Point Café',            city:'Seattle, WA',    lat:47.6175, lng:-122.3477, tags:[{key:'no-seed-oils',text:'Olive oil, ghee & tallow',cls:'tag-free'},{key:'carnivore',text:'Carnivore-friendly',cls:'tag-free'}], score:85 },
+  { icon:'🍕', name:'Artusi',                  city:'Seattle, WA',    lat:47.6142, lng:-122.3131, tags:[{key:'no-seed-oils',text:'EVOO exclusively',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:87 },
+  // Portland, OR
+  { icon:'🌿', name:"Stella's Kitchen",        city:'Portland, OR',   lat:45.5410, lng:-122.6750, tags:[{key:'no-seed-oils',text:'No seed oils',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:88 },
+  { icon:'🥞', name:'Babica Hen Cafe',         city:'Lake Oswego, OR',lat:45.4129, lng:-122.7006, tags:[{key:'no-seed-oils',text:'Butter & olive oil only',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:85 },
+  // Salt Lake City, UT
+  { icon:'🌿', name:'Aubergine Kitchen',       city:'Salt Lake City, UT',lat:40.7608,lng:-111.8910, tags:[{key:'no-seed-oils',text:'100% seed oil free (EVOO)',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'}], score:92 },
+  { icon:'🥕', name:'Redmond Heritage Farm Kitchen',city:'Salt Lake City, UT',lat:40.7204,lng:-111.8601, tags:[{key:'no-seed-oils',text:'100% seed oil free',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:93 },
+];
+
+const filterMap = {
+  'all':          null,
+  'no-seed-oils': ['no-seed-oils'],
+  'gluten-free':  ['gluten-free'],
+  'carnivore':    ['carnivore'],
+  'dairy-free':   ['dairy-free'],
+};
+
+let activeFilter = 'all';
+let userCity = null;
+let userLat  = null;
+let userLng  = null;
+
+function haversine(lat1, lng1, lat2, lng2) {
+  var R = 3958.8;
+  var dLat = (lat2 - lat1) * Math.PI / 180;
+  var dLng = (lng2 - lng1) * Math.PI / 180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+          Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+          Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
 function toggleChip(el) {
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.chip').forEach(function(c) { c.classList.remove('active'); });
   el.classList.add('active');
+  activeFilter = el.dataset.filter;
+  renderResults();
 }
-function doSearch() {
-  const val = document.getElementById('searchInput').value;
-  if (val) alert('Search coming soon! This is a demo.');
+
+function renderResults() {
+  var query = document.getElementById('searchInput').value.trim().toLowerCase();
+  var list  = document.getElementById('restaurantList');
+  var label = document.getElementById('resultsLabel');
+
+  var filterKeys = filterMap[activeFilter];
+  var filtered = restaurants.filter(function(r) {
+    var nameMatch   = !query || r.name.toLowerCase().includes(query) || r.city.toLowerCase().includes(query);
+    var filterMatch = !filterKeys || r.tags.some(function(t) { return filterKeys.includes(t.key); });
+    return nameMatch && filterMatch;
+  });
+
+  if (userLat !== null) {
+    filtered = filtered.map(function(r) {
+      return Object.assign({}, r, { dist: haversine(userLat, userLng, r.lat, r.lng) });
+    }).sort(function(a, b) { return a.dist - b.dist; });
+  }
+
+  label.textContent = filtered.length
+    ? 'Showing ' + filtered.length + ' result' + (filtered.length !== 1 ? 's' : '') + ' near ' + (userCity || 'your area')
+    : '';
+
+  if (!filtered.length) {
+    list.innerHTML =
+      '<div class="no-results">' +
+        '<div class="no-results-icon">🔍</div>' +
+        '<h3>No restaurants found</h3>' +
+        '<p>Try a different search or filter — or <a href="#" onclick="openSubmitModal(); return false;">submit one</a>!</p>' +
+      '</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(function(r) {
+    var distStr = (r.dist !== undefined)
+      ? (r.dist < 10 ? r.dist.toFixed(1) : Math.round(r.dist)) + ' mi · '
+      : '';
+    return '<div class="restaurant-card">' +
+      '<div class="rest-icon">' + r.icon + '</div>' +
+      '<div class="rest-info">' +
+        '<div class="rest-name">' + esc(r.name) + '</div>' +
+        '<div class="rest-sub">' + esc(distStr + r.city) + '</div>' +
+        '<div class="rest-tags">' +
+          r.tags.map(function(t) { return '<span class="tag ' + t.cls + '">' + esc(t.text) + '</span>'; }).join('') +
+        '</div>' +
+      '</div>' +
+      '<div class="rest-score">' +
+        '<div class="score-num">' + r.score + '</div>' +
+        '<div class="score-label">Clean score</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openSubmitModal() {
+  document.getElementById('submitModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSubmitModal() {
+  document.getElementById('submitModal').classList.remove('open');
+  document.body.style.overflow = '';
+  resetModal();
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('submitModal')) closeSubmitModal();
+}
+
+function handleSubmit(e) {
+  e.preventDefault();
+  document.getElementById('modalContent').innerHTML =
+    '<div class="submit-success">' +
+      '<div class="submit-success-icon">🎉</div>' +
+      '<h3>Thanks for the submission!</h3>' +
+      '<p>We\'ll review it and add it to CleanPlate soon.</p>' +
+      '<button class="btn-primary" style="margin-top:1.5rem" onclick="closeSubmitModal()">Done</button>' +
+    '</div>';
+}
+
+function resetModal() {
+  var mc = document.getElementById('modalContent');
+  if (mc.querySelector('.submit-success')) {
+    mc.innerHTML =
+      '<div class="modal-header">' +
+        '<div class="modal-title">Submit a restaurant</div>' +
+        '<button class="modal-close" onclick="closeSubmitModal()">&#x2715;</button>' +
+      '</div>' +
+      '<form onsubmit="handleSubmit(event)">' +
+        '<div class="form-group"><label class="form-label">Restaurant name *</label><input class="form-input" type="text" placeholder="e.g. The Clover Grille" required /></div>' +
+        '<div class="form-group"><label class="form-label">Location *</label><input class="form-input" type="text" placeholder="City, State or full address" required /></div>' +
+        '<div class="form-group"><label class="form-label">Cuisine type</label><input class="form-input" type="text" placeholder="e.g. American, Mexican, Plant-based..." /></div>' +
+        '<div class="form-group"><label class="form-label">Seed oil usage *</label><select class="form-select" required><option value="" disabled selected>Select one...</option><option value="none">No seed oils used</option><option value="some">Some seed oils used</option><option value="yes">Uses seed oils</option><option value="unknown">Unknown / not sure</option></select></div>' +
+        '<div class="form-group"><label class="form-label">Dietary options available</label><div class="form-checkboxes"><label class="form-checkbox"><input type="checkbox" /> Gluten-free menu or options</label><label class="form-checkbox"><input type="checkbox" /> Dairy-free options</label><label class="form-checkbox"><input type="checkbox" /> Carnivore-friendly</label><label class="form-checkbox"><input type="checkbox" /> Grass-fed / pasture-raised meats</label></div></div>' +
+        '<div class="form-group"><label class="form-label">Additional notes</label><textarea class="form-textarea" placeholder="Anything else we should know? (e.g. specific dishes, sourcing info, menu URL)"></textarea></div>' +
+        '<button type="submit" class="form-submit">Submit restaurant</button>' +
+        '<p class="form-note">We review all submissions before publishing. Thank you for contributing!</p>' +
+      '</form>';
+  }
+}
+
+function toggleMenu() {
+  document.getElementById('mobileMenu').classList.toggle('open');
+}
+
+function closeMenu() {
+  document.getElementById('mobileMenu').classList.remove('open');
+}
+
+function setLocation(city, lat, lng) {
+  userCity = city;
+  if (lat !== undefined) { userLat = lat; userLng = lng; }
+  document.getElementById('locationDisplay').textContent = city;
+  document.getElementById('locationEditBtn').style.display = 'inline';
+  document.getElementById('locationInput').style.display = 'none';
+  renderResults();
+}
+
+function showLocationInput() {
+  document.getElementById('locationDisplay').textContent = '';
+  document.getElementById('locationEditBtn').style.display = 'none';
+  var input = document.getElementById('locationInput');
+  input.style.display = 'inline-block';
+  input.value = userCity || '';
+  input.focus();
+  input.select();
+}
+
+function handleLocationKey(e) {
+  if (e.key === 'Enter') { var v = e.target.value.trim(); if (v) setLocation(v); }
+  if (e.key === 'Escape' && userCity) setLocation(userCity, userLat, userLng);
+}
+
+function handleLocationBlur() {
+  var v = document.getElementById('locationInput').value.trim();
+  if (v) setLocation(v);
+  else if (userCity) setLocation(userCity, userLat, userLng);
+}
+
+function initLocation() {
+  if (!navigator.geolocation) { showLocationInput(); return; }
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var lat = pos.coords.latitude, lng = pos.coords.longitude;
+      fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng,
+            { headers: { 'Accept-Language': 'en' } })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var a = d.address || {};
+          var city  = a.city || a.town || a.village || a.county || '';
+          var state = a.state_code || a.state || '';
+          setLocation(city && state ? city + ', ' + state : city || state || 'your area', lat, lng);
+        })
+        .catch(function() { showLocationInput(); });
+    },
+    function() { showLocationInput(); },
+    { timeout: 8000 }
+  );
+}
+
+renderResults();
+initLocation();
 </script>
 
 </body>
