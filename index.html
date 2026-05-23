@@ -80,6 +80,11 @@ h1 em { color: #7ddb9e; font-style: normal; }
 .no-results h3 { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700; color: rgba(232,237,233,0.7); margin-bottom: 0.5rem; }
 .no-results p { font-size: 0.88rem; color: rgba(232,237,233,0.4); }
 .no-results a { color: #7ddb9e; text-decoration: none; }
+.tag-unknown { background: rgba(255,255,255,0.06); color: rgba(232,237,233,0.35); }
+.unrated-score { text-align: right; flex-shrink: 0; font-size: 0.75rem; color: rgba(232,237,233,0.3); line-height: 1.4; }
+.api-key-banner { background: rgba(239,159,39,0.12); border: 1px solid rgba(239,159,39,0.3); border-radius: 12px; padding: 0.9rem 1.2rem; margin-bottom: 1rem; font-size: 0.85rem; color: #EF9F27; display: none; }
+.api-key-banner a { color: #EF9F27; }
+.places-note { font-size: 0.72rem; color: rgba(232,237,233,0.25); margin-top: 0.75rem; text-align: center; }
 
 .features { padding: 4rem 2rem; background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.06); }
 .features-inner { max-width: 700px; margin: 0 auto; }
@@ -186,7 +191,7 @@ footer { padding: 2rem; border-top: 1px solid rgba(255,255,255,0.06); text-align
 <div class="search-section">
   <div class="search-box">
     <div class="search-row">
-      <input class="search-input" type="text" placeholder="Restaurant name or cuisine..." id="searchInput" oninput="renderResults()" />
+      <input class="search-input" type="text" placeholder="Restaurant name or cuisine..." id="searchInput" oninput="onSearchInput()" />
       <button class="search-btn" onclick="renderResults()">Search</button>
     </div>
     <div class="location-row">
@@ -206,6 +211,11 @@ footer { padding: 2rem; border-top: 1px solid rgba(255,255,255,0.06); text-align
 </div>
 
 <div class="results">
+  <div class="api-key-banner" id="apiKeyBanner">
+    ⚠️ Add your Google Places API key to enable live restaurant search.
+    <a href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com" target="_blank">Get a key →</a>
+    Then open <code>index.html</code> and set <code>GOOGLE_PLACES_KEY</code> at the top of the script.
+  </div>
   <div class="results-label" id="resultsLabel"></div>
   <div id="restaurantList"></div>
 </div>
@@ -393,6 +403,10 @@ const restaurants = [
   { icon:'🥕', name:'Redmond Heritage Farm Kitchen',city:'Salt Lake City, UT',lat:40.7204,lng:-111.8601, tags:[{key:'no-seed-oils',text:'100% seed oil free',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:93 },
 ];
 
+// ─── Set your Google Places API key here ────────────────────────────────────
+const GOOGLE_PLACES_KEY = 'YOUR_GOOGLE_PLACES_API_KEY';
+// ────────────────────────────────────────────────────────────────────────────
+
 const filterMap = {
   'all':          null,
   'no-seed-oils': ['no-seed-oils'],
@@ -402,99 +416,219 @@ const filterMap = {
 };
 
 let activeFilter = 'all';
-let userCity = null;
-let userLat  = null;
-let userLng  = null;
+let userCity     = null;
+let userLat      = null;
+let userLng      = null;
+let placesService = null;
+let searchTimer   = null;
 
+// Load Google Places SDK dynamically so the key lives in one place
+(function () {
+  if (!GOOGLE_PLACES_KEY || GOOGLE_PLACES_KEY === 'YOUR_GOOGLE_PLACES_API_KEY') {
+    document.getElementById('apiKeyBanner').style.display = 'block';
+    return;
+  }
+  var s = document.createElement('script');
+  s.src = 'https://maps.googleapis.com/maps/api/js?key=' + GOOGLE_PLACES_KEY +
+          '&libraries=places&callback=onGooglePlacesReady';
+  s.async = true; s.defer = true;
+  document.head.appendChild(s);
+})();
+
+window.onGooglePlacesReady = function () {
+  var div = document.createElement('div');
+  div.style.display = 'none';
+  document.body.appendChild(div);
+  var map = new google.maps.Map(div, { center: { lat: 0, lng: 0 }, zoom: 1 });
+  placesService = new google.maps.places.PlacesService(map);
+  renderResults();
+};
+
+// ── Haversine distance (miles) ───────────────────────────────────────────────
 function haversine(lat1, lng1, lat2, lng2) {
   var R = 3958.8;
   var dLat = (lat2 - lat1) * Math.PI / 180;
   var dLng = (lng2 - lng1) * Math.PI / 180;
-  var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
-          Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
-          Math.sin(dLng/2)*Math.sin(dLng/2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ── Match a Google Place result against the CleanPlate database ──────────────
+function findDbEntry(placeName) {
+  var n = placeName.toLowerCase();
+  return restaurants.find(function (r) {
+    var rn = r.name.toLowerCase();
+    return rn === n || n.includes(rn) || rn.includes(n.split(' ').slice(0, 2).join(' '));
+  }) || null;
+}
+
+// ── Chip toggle ──────────────────────────────────────────────────────────────
 function toggleChip(el) {
-  document.querySelectorAll('.chip').forEach(function(c) { c.classList.remove('active'); });
+  document.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('active'); });
   el.classList.add('active');
   activeFilter = el.dataset.filter;
   renderResults();
 }
 
+// ── Debounced input handler ──────────────────────────────────────────────────
+function onSearchInput() {
+  clearTimeout(searchTimer);
+  var q = document.getElementById('searchInput').value.trim();
+  if (!q || !placesService) { renderResults(); return; }
+  searchTimer = setTimeout(renderResults, 500);
+}
+
+// ── Main render dispatcher ───────────────────────────────────────────────────
 function renderResults() {
-  var query = document.getElementById('searchInput').value.trim().toLowerCase();
+  var query = document.getElementById('searchInput').value.trim();
+  if (query && placesService) {
+    searchGooglePlaces(query);
+  } else {
+    renderLocalResults(query.toLowerCase());
+  }
+}
+
+// ── Render from the local CleanPlate database ────────────────────────────────
+function renderLocalResults(query) {
   var list  = document.getElementById('restaurantList');
   var label = document.getElementById('resultsLabel');
-
   var filterKeys = filterMap[activeFilter];
-  var filtered = restaurants.filter(function(r) {
+
+  var filtered = restaurants.filter(function (r) {
     var nameMatch   = !query || r.name.toLowerCase().includes(query) || r.city.toLowerCase().includes(query);
-    var filterMatch = !filterKeys || r.tags.some(function(t) { return filterKeys.includes(t.key); });
+    var filterMatch = !filterKeys || r.tags.some(function (t) { return filterKeys.includes(t.key); });
     return nameMatch && filterMatch;
   });
 
   if (userLat !== null) {
-    filtered = filtered.map(function(r) {
+    filtered = filtered.map(function (r) {
       return Object.assign({}, r, { dist: haversine(userLat, userLng, r.lat, r.lng) });
-    }).sort(function(a, b) { return a.dist - b.dist; });
+    }).sort(function (a, b) { return a.dist - b.dist; });
   }
 
   label.textContent = filtered.length
-    ? 'Showing ' + filtered.length + ' result' + (filtered.length !== 1 ? 's' : '') + ' near ' + (userCity || 'your area')
+    ? 'Showing ' + filtered.length + ' result' + (filtered.length !== 1 ? 's' : '') +
+      ' near ' + (userCity || 'your area')
     : '';
 
   if (!filtered.length) {
-    list.innerHTML =
-      '<div class="no-results">' +
-        '<div class="no-results-icon">🔍</div>' +
-        '<h3>No restaurants found</h3>' +
-        '<p>Try a different search or filter — or <a href="#" onclick="openSubmitModal(); return false;">submit one</a>!</p>' +
-      '</div>';
-    return;
+    list.innerHTML = noResultsHTML(); return;
   }
 
-  list.innerHTML = filtered.map(function(r) {
-    var distStr = (r.dist !== undefined)
-      ? (r.dist < 10 ? r.dist.toFixed(1) : Math.round(r.dist)) + ' mi · '
-      : '';
-    return '<div class="restaurant-card">' +
-      '<div class="rest-icon">' + r.icon + '</div>' +
-      '<div class="rest-info">' +
-        '<div class="rest-name">' + esc(r.name) + '</div>' +
-        '<div class="rest-sub">' + esc(distStr + r.city) + '</div>' +
-        '<div class="rest-tags">' +
-          r.tags.map(function(t) { return '<span class="tag ' + t.cls + '">' + esc(t.text) + '</span>'; }).join('') +
-        '</div>' +
-      '</div>' +
-      '<div class="rest-score">' +
-        '<div class="score-num">' + r.score + '</div>' +
-        '<div class="score-label">Clean score</div>' +
-      '</div>' +
-    '</div>';
+  list.innerHTML = filtered.map(function (r) {
+    var distStr = r.dist !== undefined
+      ? (r.dist < 10 ? r.dist.toFixed(1) : Math.round(r.dist)) + ' mi · ' : '';
+    return cardHTML(r.icon, r.name, distStr + r.city, r.tags, r.score);
   }).join('');
+}
+
+// ── Query Google Places then annotate with CleanPlate data ───────────────────
+function searchGooglePlaces(query) {
+  var list  = document.getElementById('restaurantList');
+  var label = document.getElementById('resultsLabel');
+  label.textContent = 'Searching…';
+  list.innerHTML = '';
+
+  var req = { query: query, type: 'restaurant' };
+  if (userLat !== null) {
+    req.location = new google.maps.LatLng(userLat, userLng);
+    req.radius   = 80467; // 50 miles
+  }
+
+  placesService.textSearch(req, function (results, status) {
+    if (status !== google.maps.places.PlacesServiceStatus.OK || !results || !results.length) {
+      label.textContent = '';
+      list.innerHTML = noResultsHTML();
+      return;
+    }
+
+    var filterKeys = filterMap[activeFilter];
+    var items = results.map(function (p) {
+      var db   = findDbEntry(p.name);
+      var loc  = p.geometry && p.geometry.location;
+      var dist = (loc && userLat !== null)
+        ? haversine(userLat, userLng, loc.lat(), loc.lng()) : null;
+      return { place: p, db: db, dist: dist };
+    });
+
+    // Apply tag filter — only hide if we know the restaurant doesn't qualify
+    if (filterKeys) {
+      items = items.filter(function (item) {
+        return item.db && item.db.tags.some(function (t) { return filterKeys.includes(t.key); });
+      });
+    }
+
+    label.textContent = items.length
+      ? 'Showing ' + items.length + ' result' + (items.length !== 1 ? 's' : '') +
+        ' near ' + (userCity || 'your area')
+      : '';
+
+    if (!items.length) { list.innerHTML = noResultsHTML(); return; }
+
+    list.innerHTML = items.map(function (item) {
+      var p    = item.place;
+      var db   = item.db;
+      var addr = p.formatted_address || p.vicinity || '';
+      var distStr = item.dist !== null
+        ? (item.dist < 10 ? item.dist.toFixed(1) : Math.round(item.dist)) + ' mi · ' : '';
+      var icon = db ? db.icon : '🍽️';
+      var tags = db
+        ? db.tags
+        : [{ key: 'unknown', text: 'Not yet rated', cls: 'tag-unknown' }];
+      var score = db ? db.score : null;
+      return cardHTML(icon, p.name, distStr + addr, tags, score);
+    }).join('') +
+    '<p class="places-note">Restaurant data from Google Places · Dietary ratings by CleanPlate</p>';
+  });
+}
+
+// ── Card & empty-state HTML builders ─────────────────────────────────────────
+function cardHTML(icon, name, sub, tags, score) {
+  var scoreHTML = score !== null
+    ? '<div class="score-num">' + score + '</div><div class="score-label">Clean score</div>'
+    : '<div class="unrated-score">Not yet<br>rated</div>';
+  return '<div class="restaurant-card">' +
+    '<div class="rest-icon">' + icon + '</div>' +
+    '<div class="rest-info">' +
+      '<div class="rest-name">' + esc(name) + '</div>' +
+      '<div class="rest-sub">'  + esc(sub)  + '</div>' +
+      '<div class="rest-tags">' +
+        tags.map(function (t) {
+          return '<span class="tag ' + t.cls + '">' + esc(t.text) + '</span>';
+        }).join('') +
+      '</div>' +
+    '</div>' +
+    '<div class="rest-score">' + scoreHTML + '</div>' +
+  '</div>';
+}
+
+function noResultsHTML() {
+  return '<div class="no-results">' +
+    '<div class="no-results-icon">🔍</div>' +
+    '<h3>No restaurants found</h3>' +
+    '<p>Try a different search — or <a href="#" onclick="openSubmitModal(); return false;">submit one</a>!</p>' +
+  '</div>';
 }
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Modal ────────────────────────────────────────────────────────────────────
 function openSubmitModal() {
   document.getElementById('submitModal').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
-
 function closeSubmitModal() {
   document.getElementById('submitModal').classList.remove('open');
   document.body.style.overflow = '';
   resetModal();
 }
-
 function handleOverlayClick(e) {
   if (e.target === document.getElementById('submitModal')) closeSubmitModal();
 }
-
 function handleSubmit(e) {
   e.preventDefault();
   document.getElementById('modalContent').innerHTML =
@@ -505,36 +639,31 @@ function handleSubmit(e) {
       '<button class="btn-primary" style="margin-top:1.5rem" onclick="closeSubmitModal()">Done</button>' +
     '</div>';
 }
-
 function resetModal() {
   var mc = document.getElementById('modalContent');
-  if (mc.querySelector('.submit-success')) {
-    mc.innerHTML =
-      '<div class="modal-header">' +
-        '<div class="modal-title">Submit a restaurant</div>' +
-        '<button class="modal-close" onclick="closeSubmitModal()">&#x2715;</button>' +
-      '</div>' +
-      '<form onsubmit="handleSubmit(event)">' +
-        '<div class="form-group"><label class="form-label">Restaurant name *</label><input class="form-input" type="text" placeholder="e.g. The Clover Grille" required /></div>' +
-        '<div class="form-group"><label class="form-label">Location *</label><input class="form-input" type="text" placeholder="City, State or full address" required /></div>' +
-        '<div class="form-group"><label class="form-label">Cuisine type</label><input class="form-input" type="text" placeholder="e.g. American, Mexican, Plant-based..." /></div>' +
-        '<div class="form-group"><label class="form-label">Seed oil usage *</label><select class="form-select" required><option value="" disabled selected>Select one...</option><option value="none">No seed oils used</option><option value="some">Some seed oils used</option><option value="yes">Uses seed oils</option><option value="unknown">Unknown / not sure</option></select></div>' +
-        '<div class="form-group"><label class="form-label">Dietary options available</label><div class="form-checkboxes"><label class="form-checkbox"><input type="checkbox" /> Gluten-free menu or options</label><label class="form-checkbox"><input type="checkbox" /> Dairy-free options</label><label class="form-checkbox"><input type="checkbox" /> Carnivore-friendly</label><label class="form-checkbox"><input type="checkbox" /> Grass-fed / pasture-raised meats</label></div></div>' +
-        '<div class="form-group"><label class="form-label">Additional notes</label><textarea class="form-textarea" placeholder="Anything else we should know? (e.g. specific dishes, sourcing info, menu URL)"></textarea></div>' +
-        '<button type="submit" class="form-submit">Submit restaurant</button>' +
-        '<p class="form-note">We review all submissions before publishing. Thank you for contributing!</p>' +
-      '</form>';
-  }
+  if (!mc.querySelector('.submit-success')) return;
+  mc.innerHTML =
+    '<div class="modal-header">' +
+      '<div class="modal-title">Submit a restaurant</div>' +
+      '<button class="modal-close" onclick="closeSubmitModal()">&#x2715;</button>' +
+    '</div>' +
+    '<form onsubmit="handleSubmit(event)">' +
+      '<div class="form-group"><label class="form-label">Restaurant name *</label><input class="form-input" type="text" placeholder="e.g. The Clover Grille" required /></div>' +
+      '<div class="form-group"><label class="form-label">Location *</label><input class="form-input" type="text" placeholder="City, State or full address" required /></div>' +
+      '<div class="form-group"><label class="form-label">Cuisine type</label><input class="form-input" type="text" placeholder="e.g. American, Mexican, Plant-based..." /></div>' +
+      '<div class="form-group"><label class="form-label">Seed oil usage *</label><select class="form-select" required><option value="" disabled selected>Select one...</option><option value="none">No seed oils used</option><option value="some">Some seed oils used</option><option value="yes">Uses seed oils</option><option value="unknown">Unknown / not sure</option></select></div>' +
+      '<div class="form-group"><label class="form-label">Dietary options available</label><div class="form-checkboxes"><label class="form-checkbox"><input type="checkbox" /> Gluten-free menu or options</label><label class="form-checkbox"><input type="checkbox" /> Dairy-free options</label><label class="form-checkbox"><input type="checkbox" /> Carnivore-friendly</label><label class="form-checkbox"><input type="checkbox" /> Grass-fed / pasture-raised meats</label></div></div>' +
+      '<div class="form-group"><label class="form-label">Additional notes</label><textarea class="form-textarea" placeholder="Anything else we should know?"></textarea></div>' +
+      '<button type="submit" class="form-submit">Submit restaurant</button>' +
+      '<p class="form-note">We review all submissions before publishing. Thank you!</p>' +
+    '</form>';
 }
 
-function toggleMenu() {
-  document.getElementById('mobileMenu').classList.toggle('open');
-}
+// ── Nav hamburger ─────────────────────────────────────────────────────────────
+function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+function closeMenu()  { document.getElementById('mobileMenu').classList.remove('open'); }
 
-function closeMenu() {
-  document.getElementById('mobileMenu').classList.remove('open');
-}
-
+// ── Location ──────────────────────────────────────────────────────────────────
 function setLocation(city, lat, lng) {
   userCity = city;
   if (lat !== undefined) { userLat = lat; userLng = lng; }
@@ -543,45 +672,40 @@ function setLocation(city, lat, lng) {
   document.getElementById('locationInput').style.display = 'none';
   renderResults();
 }
-
 function showLocationInput() {
   document.getElementById('locationDisplay').textContent = '';
   document.getElementById('locationEditBtn').style.display = 'none';
   var input = document.getElementById('locationInput');
   input.style.display = 'inline-block';
   input.value = userCity || '';
-  input.focus();
-  input.select();
+  input.focus(); input.select();
 }
-
 function handleLocationKey(e) {
-  if (e.key === 'Enter') { var v = e.target.value.trim(); if (v) setLocation(v); }
+  if (e.key === 'Enter')  { var v = e.target.value.trim(); if (v) setLocation(v); }
   if (e.key === 'Escape' && userCity) setLocation(userCity, userLat, userLng);
 }
-
 function handleLocationBlur() {
   var v = document.getElementById('locationInput').value.trim();
   if (v) setLocation(v);
   else if (userCity) setLocation(userCity, userLat, userLng);
 }
-
 function initLocation() {
   if (!navigator.geolocation) { showLocationInput(); return; }
   navigator.geolocation.getCurrentPosition(
-    function(pos) {
+    function (pos) {
       var lat = pos.coords.latitude, lng = pos.coords.longitude;
       fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng,
             { headers: { 'Accept-Language': 'en' } })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
           var a = d.address || {};
           var city  = a.city || a.town || a.village || a.county || '';
           var state = a.state_code || a.state || '';
           setLocation(city && state ? city + ', ' + state : city || state || 'your area', lat, lng);
         })
-        .catch(function() { showLocationInput(); });
+        .catch(function () { showLocationInput(); });
     },
-    function() { showLocationInput(); },
+    function () { showLocationInput(); },
     { timeout: 8000 }
   );
 }
