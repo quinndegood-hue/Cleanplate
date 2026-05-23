@@ -212,9 +212,9 @@ footer { padding: 2rem; border-top: 1px solid rgba(255,255,255,0.06); text-align
 
 <div class="results">
   <div class="api-key-banner" id="apiKeyBanner">
-    ⚠️ Add your Google Places API key to enable live restaurant search.
-    <a href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com" target="_blank">Get a key →</a>
-    Then open <code>index.html</code> and set <code>GOOGLE_PLACES_KEY</code> at the top of the script.
+    ⚠️ Add a free Foursquare API key to enable live restaurant search.
+    <a href="https://developer.foursquare.com" target="_blank">Get a free key →</a>
+    (no credit card) — then open <code>index.html</code> and set <code>FSQ_API_KEY</code> at the top of the script.
   </div>
   <div class="results-label" id="resultsLabel"></div>
   <div id="restaurantList"></div>
@@ -403,8 +403,9 @@ const restaurants = [
   { icon:'🥕', name:'Redmond Heritage Farm Kitchen',city:'Salt Lake City, UT',lat:40.7204,lng:-111.8601, tags:[{key:'no-seed-oils',text:'100% seed oil free',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:93 },
 ];
 
-// ─── Set your Google Places API key here ────────────────────────────────────
-const GOOGLE_PLACES_KEY = 'YOUR_GOOGLE_PLACES_API_KEY';
+// ─── Set your Foursquare Places API key here ────────────────────────────────
+// Free signup (no credit card): https://developer.foursquare.com
+const FSQ_API_KEY = 'YOUR_FOURSQUARE_API_KEY';
 // ────────────────────────────────────────────────────────────────────────────
 
 const filterMap = {
@@ -419,30 +420,10 @@ let activeFilter = 'all';
 let userCity     = null;
 let userLat      = null;
 let userLng      = null;
-let placesService = null;
-let searchTimer   = null;
+let searchTimer = null;
+var fsqReady = FSQ_API_KEY && FSQ_API_KEY !== 'YOUR_FOURSQUARE_API_KEY';
 
-// Load Google Places SDK dynamically so the key lives in one place
-(function () {
-  if (!GOOGLE_PLACES_KEY || GOOGLE_PLACES_KEY === 'YOUR_GOOGLE_PLACES_API_KEY') {
-    document.getElementById('apiKeyBanner').style.display = 'block';
-    return;
-  }
-  var s = document.createElement('script');
-  s.src = 'https://maps.googleapis.com/maps/api/js?key=' + GOOGLE_PLACES_KEY +
-          '&libraries=places&callback=onGooglePlacesReady';
-  s.async = true; s.defer = true;
-  document.head.appendChild(s);
-})();
-
-window.onGooglePlacesReady = function () {
-  var div = document.createElement('div');
-  div.style.display = 'none';
-  document.body.appendChild(div);
-  var map = new google.maps.Map(div, { center: { lat: 0, lng: 0 }, zoom: 1 });
-  placesService = new google.maps.places.PlacesService(map);
-  renderResults();
-};
+if (!fsqReady) document.getElementById('apiKeyBanner').style.display = 'block';
 
 // ── Haversine distance (miles) ───────────────────────────────────────────────
 function haversine(lat1, lng1, lat2, lng2) {
@@ -476,15 +457,15 @@ function toggleChip(el) {
 function onSearchInput() {
   clearTimeout(searchTimer);
   var q = document.getElementById('searchInput').value.trim();
-  if (!q || !placesService) { renderResults(); return; }
+  if (!q || !fsqReady) { renderResults(); return; }
   searchTimer = setTimeout(renderResults, 500);
 }
 
 // ── Main render dispatcher ───────────────────────────────────────────────────
 function renderResults() {
   var query = document.getElementById('searchInput').value.trim();
-  if (query && placesService) {
-    searchGooglePlaces(query);
+  if (query && fsqReady) {
+    searchFoursquare(query);
   } else {
     renderLocalResults(query.toLowerCase());
   }
@@ -524,36 +505,38 @@ function renderLocalResults(query) {
   }).join('');
 }
 
-// ── Query Google Places then annotate with CleanPlate data ───────────────────
-function searchGooglePlaces(query) {
+// ── Query Foursquare then annotate with CleanPlate data ──────────────────────
+function searchFoursquare(query) {
   var list  = document.getElementById('restaurantList');
   var label = document.getElementById('resultsLabel');
   label.textContent = 'Searching…';
   list.innerHTML = '';
 
-  var req = { query: query, type: 'restaurant' };
-  if (userLat !== null) {
-    req.location = new google.maps.LatLng(userLat, userLng);
-    req.radius   = 80467; // 50 miles
-  }
+  var url = 'https://api.foursquare.com/v3/places/search' +
+    '?query='      + encodeURIComponent(query) +
+    '&categories=13000' +   // Food & Drink
+    '&limit=20';
+  if (userLat !== null) url += '&ll=' + userLat + ',' + userLng + '&radius=80000';
 
-  placesService.textSearch(req, function (results, status) {
-    if (status !== google.maps.places.PlacesServiceStatus.OK || !results || !results.length) {
-      label.textContent = '';
-      list.innerHTML = noResultsHTML();
-      return;
-    }
+  fetch(url, {
+    headers: { 'Authorization': FSQ_API_KEY, 'Accept': 'application/json' }
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    var results = (data.results || []);
+    if (!results.length) { label.textContent = ''; list.innerHTML = noResultsHTML(); return; }
 
     var filterKeys = filterMap[activeFilter];
     var items = results.map(function (p) {
-      var db   = findDbEntry(p.name);
-      var loc  = p.geometry && p.geometry.location;
-      var dist = (loc && userLat !== null)
-        ? haversine(userLat, userLng, loc.lat(), loc.lng()) : null;
-      return { place: p, db: db, dist: dist };
+      var db  = findDbEntry(p.name);
+      var geo = p.geocodes && p.geocodes.main;
+      var dist = (geo && userLat !== null)
+        ? haversine(userLat, userLng, geo.latitude, geo.longitude) : null;
+      var addr = (p.location && p.location.formatted_address) || '';
+      return { name: p.name, addr: addr, db: db, dist: dist };
     });
 
-    // Apply tag filter — only hide if we know the restaurant doesn't qualify
+    // Tag filter: only exclude if we know the restaurant doesn't qualify
     if (filterKeys) {
       items = items.filter(function (item) {
         return item.db && item.db.tags.some(function (t) { return filterKeys.includes(t.key); });
@@ -568,20 +551,16 @@ function searchGooglePlaces(query) {
     if (!items.length) { list.innerHTML = noResultsHTML(); return; }
 
     list.innerHTML = items.map(function (item) {
-      var p    = item.place;
-      var db   = item.db;
-      var addr = p.formatted_address || p.vicinity || '';
       var distStr = item.dist !== null
         ? (item.dist < 10 ? item.dist.toFixed(1) : Math.round(item.dist)) + ' mi · ' : '';
-      var icon = db ? db.icon : '🍽️';
-      var tags = db
-        ? db.tags
-        : [{ key: 'unknown', text: 'Not yet rated', cls: 'tag-unknown' }];
-      var score = db ? db.score : null;
-      return cardHTML(icon, p.name, distStr + addr, tags, score);
+      var icon  = item.db ? item.db.icon : '🍽️';
+      var tags  = item.db ? item.db.tags : [{ key: 'unknown', text: 'Not yet rated', cls: 'tag-unknown' }];
+      var score = item.db ? item.db.score : null;
+      return cardHTML(icon, item.name, distStr + item.addr, tags, score);
     }).join('') +
-    '<p class="places-note">Restaurant data from Google Places · Dietary ratings by CleanPlate</p>';
-  });
+    '<p class="places-note">Restaurant data from Foursquare · Dietary ratings by CleanPlate</p>';
+  })
+  .catch(function () { label.textContent = ''; list.innerHTML = noResultsHTML(); });
 }
 
 // ── Card & empty-state HTML builders ─────────────────────────────────────────
