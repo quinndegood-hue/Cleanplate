@@ -82,8 +82,6 @@ h1 em { color: #7ddb9e; font-style: normal; }
 .no-results a { color: #7ddb9e; text-decoration: none; }
 .tag-unknown { background: rgba(255,255,255,0.06); color: rgba(232,237,233,0.35); }
 .unrated-score { text-align: right; flex-shrink: 0; font-size: 0.75rem; color: rgba(232,237,233,0.3); line-height: 1.4; }
-.api-key-banner { background: rgba(239,159,39,0.12); border: 1px solid rgba(239,159,39,0.3); border-radius: 12px; padding: 0.9rem 1.2rem; margin-bottom: 1rem; font-size: 0.85rem; color: #EF9F27; display: none; }
-.api-key-banner a { color: #EF9F27; }
 .places-note { font-size: 0.72rem; color: rgba(232,237,233,0.25); margin-top: 0.75rem; text-align: center; }
 
 .features { padding: 4rem 2rem; background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.06); }
@@ -425,7 +423,7 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ── Match a Google Place result against the CleanPlate database ──────────────
+// ── Match an OSM result against the CleanPlate database ──────────────────────
 function findDbEntry(placeName) {
   var n = placeName.toLowerCase();
   return restaurants.find(function (r) {
@@ -741,12 +739,22 @@ function showLocationInput() {
 }
 function handleLocationKey(e) {
   if (e.key === 'Enter')  { var v = e.target.value.trim(); if (v) setLocation(v); }
-  if (e.key === 'Escape' && userCity) setLocation(userCity, userLat, userLng);
+  if (e.key === 'Escape' && userCity) {
+    // Restore previous location — re-geocode if coords weren't resolved last time
+    if (userLat !== null) setLocation(userCity, userLat, userLng);
+    else setLocation(userCity);
+  }
 }
 function handleLocationBlur() {
   var v = document.getElementById('locationInput').value.trim();
-  if (v) setLocation(v);
-  else if (userCity) setLocation(userCity, userLat, userLng);
+  if (v) {
+    setLocation(v);
+  } else if (userCity) {
+    // User cleared the field and blurred — restore previous city.
+    // If coords were never resolved, retry geocoding instead of restoring null coords.
+    if (userLat !== null) setLocation(userCity, userLat, userLng);
+    else setLocation(userCity);
+  }
 }
 function initLocation() {
   if (!navigator.geolocation) { showLocationInput(); return; }
