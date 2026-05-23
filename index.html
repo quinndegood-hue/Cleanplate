@@ -498,22 +498,34 @@ function renderLocalResults(query) {
 function searchOverpass(query) {
   var list  = document.getElementById('restaurantList');
   var label = document.getElementById('resultsLabel');
+
+  // Can't search without coords — the query would scan the whole planet and time out
+  if (userLat === null) {
+    label.textContent = '';
+    list.innerHTML =
+      '<div class="no-results">' +
+        '<div class="no-results-icon">📍</div>' +
+        '<h3>Enter your location first</h3>' +
+        '<p>Type your city or ZIP in the location field above, then search.</p>' +
+      '</div>';
+    return;
+  }
+
   label.textContent = 'Searching…';
   list.innerHTML = '';
 
-  // Escape regex special chars so arbitrary text is safe in Overpass QL
-  var safe = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  var geo  = userLat !== null
-    ? '(around:50000,' + userLat + ',' + userLng + ')'
-    : ''; // no location = no bounding box (slow, avoid in prod)
+  // Replace apostrophes/quotes/special regex chars with . (wildcard)
+  // so "McDonald's" safely matches "McDonald's" in Overpass QL
+  var safe = query.replace(/['"]/g, '.').replace(/[*+?^${}()|[\]\\]/g, '\\$&').trim();
 
+  var around = '(around:50000,' + userLat + ',' + userLng + ')';
   var oql =
-    '[out:json][timeout:20];' +
+    '[out:json][timeout:15];' +
     '(' +
-      'node["amenity"~"restaurant|fast_food|cafe|bar"]["name"~"' + safe + '",i]' + geo + ';' +
-      'way["amenity"~"restaurant|fast_food|cafe|bar"]["name"~"'  + safe + '",i]' + geo + ';' +
+      'node["amenity"~"restaurant|fast_food|cafe|bar"]["name"~"' + safe + '",i]' + around + ';' +
+       'way["amenity"~"restaurant|fast_food|cafe|bar"]["name"~"' + safe + '",i]' + around + ';' +
     ');' +
-    'out center 25;';
+    'out center 20;';
 
   fetch('https://overpass-api.de/api/interpreter', {
     method: 'POST',
@@ -529,19 +541,18 @@ function searchOverpass(query) {
       return;
     }
 
-    // Build items, deduplicating by name
+    // Build items, deduplicate by name
     var seen  = {};
     var items = [];
     elements.forEach(function (el) {
       var t    = el.tags || {};
       var name = t.name || '';
-      if (!name || seen[name]) return;
-      seen[name] = true;
+      if (!name || seen[name.toLowerCase()]) return;
+      seen[name.toLowerCase()] = true;
 
-      var lat  = el.lat  !== undefined ? el.lat  : (el.center && el.center.lat);
-      var lng  = el.lon  !== undefined ? el.lon  : (el.center && el.center.lon);
+      var lat = el.lat !== undefined ? el.lat : (el.center && el.center.lat);
+      var lng = el.lon !== undefined ? el.lon : (el.center && el.center.lon);
 
-      // Build a readable address from OSM address tags
       var parts = [];
       if (t['addr:housenumber'] && t['addr:street'])
         parts.push(t['addr:housenumber'] + ' ' + t['addr:street']);
@@ -549,20 +560,17 @@ function searchOverpass(query) {
         parts.push(t['addr:street']);
       if (t['addr:city'])  parts.push(t['addr:city']);
       if (t['addr:state']) parts.push(t['addr:state']);
-      var addr = parts.join(', ');
 
       items.push({
         name: name,
-        addr: addr,
+        addr: parts.join(', '),
         db:   findDbEntry(name),
-        dist: (lat && lng && userLat !== null) ? haversine(userLat, userLng, lat, lng) : null
+        dist: (lat && lng) ? haversine(userLat, userLng, lat, lng) : null
       });
     });
 
-    // Sort closest first
     items.sort(function (a, b) { return (a.dist || 1e9) - (b.dist || 1e9); });
 
-    // Tag filter — only exclude results we can positively identify as non-matching
     var filterKeys = filterMap[activeFilter];
     if (filterKeys) {
       items = items.filter(function (item) {
@@ -592,7 +600,12 @@ function searchOverpass(query) {
   })
   .catch(function () {
     label.textContent = '';
-    list.innerHTML = noResultsHTML();
+    list.innerHTML =
+      '<div class="no-results">' +
+        '<div class="no-results-icon">⚠️</div>' +
+        '<h3>Search failed</h3>' +
+        '<p>The map server didn\'t respond. Try again in a moment.</p>' +
+      '</div>';
   });
 }
 
@@ -678,11 +691,45 @@ function closeMenu()  { document.getElementById('mobileMenu').classList.remove('
 // ── Location ──────────────────────────────────────────────────────────────────
 function setLocation(city, lat, lng) {
   userCity = city;
-  if (lat !== undefined) { userLat = lat; userLng = lng; }
-  document.getElementById('locationDisplay').textContent = city;
-  document.getElementById('locationEditBtn').style.display = 'inline';
   document.getElementById('locationInput').style.display = 'none';
-  renderResults();
+
+  if (lat !== undefined) {
+    // Coords already known (came from geolocation)
+    userLat = lat; userLng = lng;
+    document.getElementById('locationDisplay').textContent = city;
+    document.getElementById('locationEditBtn').style.display = 'inline';
+    renderResults();
+  } else {
+    // User typed a city or ZIP — geocode it with Nominatim to get coords
+    document.getElementById('locationDisplay').innerHTML =
+      '<span class="location-spinner"></span> Finding…';
+    document.getElementById('locationEditBtn').style.display = 'none';
+
+    fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(city) +
+          '&format=json&limit=1&addressdetails=1',
+          { headers: { 'Accept-Language': 'en' } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.length) {
+          userLat = parseFloat(data[0].lat);
+          userLng = parseFloat(data[0].lon);
+          // Use a clean label if Nominatim gives us better address parts
+          var a = data[0].address || {};
+          var niceName = (a.city || a.town || a.village || city);
+          var niceState = a.state_code || '';
+          userCity = niceName + (niceState ? ', ' + niceState : '');
+        }
+        document.getElementById('locationDisplay').textContent = userCity;
+        document.getElementById('locationEditBtn').style.display = 'inline';
+        renderResults();
+      })
+      .catch(function () {
+        // Geocoding failed — show the city name as-is, search still works for local DB
+        document.getElementById('locationDisplay').textContent = city;
+        document.getElementById('locationEditBtn').style.display = 'inline';
+        renderResults();
+      });
+  }
 }
 function showLocationInput() {
   document.getElementById('locationDisplay').textContent = '';
