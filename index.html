@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CleanPlate — Find Clean Restaurants Near You</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -406,12 +407,13 @@ const filterMap = {
   'dairy-free':   ['dairy-free'],
 };
 
-let activeFilter  = 'all';
-let userCity      = null;
-let userLat       = null;
-let userLng       = null;
-let searchTimer   = null;
-let locationKeyed = false;  // prevents blur from double-calling setLocation after Enter
+let activeFilter       = 'all';
+let userCity           = null;
+let userLat            = null;
+let userLng            = null;
+let searchTimer        = null;
+let locationKeyed      = false;  // prevents blur from double-calling setLocation after Enter
+let overpassController = null;   // AbortController for the current Overpass request
 
 // ── Haversine distance (miles) ───────────────────────────────────────────────
 function haversine(lat1, lng1, lat2, lng2) {
@@ -494,15 +496,17 @@ function renderLocalResults(query) {
 }
 
 // ── Fetch from Overpass; auto-retry on backup server if primary fails ─────────
-function fetchOverpass(oql) {
+// Pass an AbortSignal so stale in-flight requests can be cancelled.
+function fetchOverpass(oql, signal) {
   var body = 'data=' + encodeURIComponent(oql);
-  var opts = { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body };
+  var opts = { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body, signal: signal };
   return fetch('https://overpass-api.de/api/interpreter', opts)
     .then(function (r) {
       if (!r.ok) throw new Error('non-2xx');
       return r.json();
     })
-    .catch(function () {
+    .catch(function (err) {
+      if (err && err.name === 'AbortError') throw err;  // don't retry cancelled requests
       // Primary server down or rate-limited — try backup
       return fetch('https://overpass.kumi.systems/api/interpreter', opts)
         .then(function (r) { return r.json(); });
@@ -525,6 +529,10 @@ function searchOverpass(query) {
       '</div>';
     return;
   }
+
+  // Cancel any in-flight request so stale results can't overwrite fresh ones
+  if (overpassController) overpassController.abort();
+  overpassController = new AbortController();
 
   label.textContent = 'Searching…';
   list.innerHTML = '';
@@ -552,7 +560,7 @@ function searchOverpass(query) {
     ');' +
     'out center 20;';
 
-  fetchOverpass(oql)
+  fetchOverpass(oql, overpassController.signal)
   .then(function (data) {
     var elements = data.elements || [];
     if (!elements.length) {
@@ -611,19 +619,21 @@ function searchOverpass(query) {
     }
 
     list.innerHTML = items.map(function (item) {
-      var distStr = item.dist !== null
-        ? (item.dist < 10 ? item.dist.toFixed(1) : Math.round(item.dist)) + ' mi · ' : '';
+      var distPart = item.dist !== null
+        ? (item.dist < 10 ? item.dist.toFixed(1) : Math.round(item.dist)) + ' mi' : '';
+      var sub = [distPart, item.addr].filter(Boolean).join(' · ');
       return cardHTML(
         item.db ? item.db.icon : '🍽️',
         item.name,
-        distStr + item.addr,
+        sub,
         item.db ? item.db.tags : [{ key: 'unknown', text: 'Not yet rated', cls: 'tag-unknown' }],
         item.db ? item.db.score : null
       );
     }).join('') +
     '<p class="places-note">Restaurant data from OpenStreetMap · Dietary ratings by CleanPlate</p>';
   })
-  .catch(function () {
+  .catch(function (err) {
+    if (err && err.name === 'AbortError') return;  // silently drop — a newer search is already running
     label.textContent = '';
     list.innerHTML =
       '<div class="no-results">' +
