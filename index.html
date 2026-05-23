@@ -211,12 +211,7 @@ footer { padding: 2rem; border-top: 1px solid rgba(255,255,255,0.06); text-align
 </div>
 
 <div class="results">
-  <div class="api-key-banner" id="apiKeyBanner">
-    ⚠️ Add a free Foursquare API key to enable live restaurant search.
-    <a href="https://developer.foursquare.com" target="_blank">Get a free key →</a>
-    (no credit card) — then open <code>index.html</code> and set <code>FSQ_API_KEY</code> at the top of the script.
-  </div>
-  <div class="results-label" id="resultsLabel"></div>
+<div class="results-label" id="resultsLabel"></div>
   <div id="restaurantList"></div>
 </div>
 
@@ -403,10 +398,7 @@ const restaurants = [
   { icon:'🥕', name:'Redmond Heritage Farm Kitchen',city:'Salt Lake City, UT',lat:40.7204,lng:-111.8601, tags:[{key:'no-seed-oils',text:'100% seed oil free',cls:'tag-free'},{key:'gluten-free',text:'GF options',cls:'tag-free'},{key:'dairy-free',text:'Dairy-free options',cls:'tag-free'}], score:93 },
 ];
 
-// ─── Set your Foursquare Places API key here ────────────────────────────────
-// Free signup (no credit card): https://developer.foursquare.com
-const FSQ_API_KEY = 'YOUR_FOURSQUARE_API_KEY';
-// ────────────────────────────────────────────────────────────────────────────
+// No API key needed — restaurant search uses OpenStreetMap via Overpass API
 
 const filterMap = {
   'all':          null,
@@ -421,9 +413,6 @@ let userCity     = null;
 let userLat      = null;
 let userLng      = null;
 let searchTimer = null;
-var fsqReady = FSQ_API_KEY && FSQ_API_KEY !== 'YOUR_FOURSQUARE_API_KEY';
-
-if (!fsqReady) document.getElementById('apiKeyBanner').style.display = 'block';
 
 // ── Haversine distance (miles) ───────────────────────────────────────────────
 function haversine(lat1, lng1, lat2, lng2) {
@@ -457,17 +446,17 @@ function toggleChip(el) {
 function onSearchInput() {
   clearTimeout(searchTimer);
   var q = document.getElementById('searchInput').value.trim();
-  if (!q || !fsqReady) { renderResults(); return; }
-  searchTimer = setTimeout(renderResults, 500);
+  if (!q) { renderResults(); return; }
+  searchTimer = setTimeout(renderResults, 600);
 }
 
 // ── Main render dispatcher ───────────────────────────────────────────────────
 function renderResults() {
   var query = document.getElementById('searchInput').value.trim();
-  if (query && fsqReady) {
-    searchFoursquare(query);
+  if (query) {
+    searchOverpass(query);
   } else {
-    renderLocalResults(query.toLowerCase());
+    renderLocalResults('');
   }
 }
 
@@ -505,38 +494,76 @@ function renderLocalResults(query) {
   }).join('');
 }
 
-// ── Query Foursquare then annotate with CleanPlate data ──────────────────────
-function searchFoursquare(query) {
+// ── Query OpenStreetMap via Overpass API, annotate with CleanPlate data ──────
+function searchOverpass(query) {
   var list  = document.getElementById('restaurantList');
   var label = document.getElementById('resultsLabel');
   label.textContent = 'Searching…';
   list.innerHTML = '';
 
-  var url = 'https://api.foursquare.com/v3/places/search' +
-    '?query='      + encodeURIComponent(query) +
-    '&categories=13000' +   // Food & Drink
-    '&limit=20';
-  if (userLat !== null) url += '&ll=' + userLat + ',' + userLng + '&radius=80000';
+  // Escape regex special chars so arbitrary text is safe in Overpass QL
+  var safe = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var geo  = userLat !== null
+    ? '(around:50000,' + userLat + ',' + userLng + ')'
+    : ''; // no location = no bounding box (slow, avoid in prod)
 
-  fetch(url, {
-    headers: { 'Authorization': FSQ_API_KEY, 'Accept': 'application/json' }
+  var oql =
+    '[out:json][timeout:20];' +
+    '(' +
+      'node["amenity"~"restaurant|fast_food|cafe|bar"]["name"~"' + safe + '",i]' + geo + ';' +
+      'way["amenity"~"restaurant|fast_food|cafe|bar"]["name"~"'  + safe + '",i]' + geo + ';' +
+    ');' +
+    'out center 25;';
+
+  fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'data=' + encodeURIComponent(oql)
   })
   .then(function (r) { return r.json(); })
   .then(function (data) {
-    var results = (data.results || []);
-    if (!results.length) { label.textContent = ''; list.innerHTML = noResultsHTML(); return; }
+    var elements = data.elements || [];
+    if (!elements.length) {
+      label.textContent = '';
+      list.innerHTML = noResultsHTML();
+      return;
+    }
 
-    var filterKeys = filterMap[activeFilter];
-    var items = results.map(function (p) {
-      var db  = findDbEntry(p.name);
-      var geo = p.geocodes && p.geocodes.main;
-      var dist = (geo && userLat !== null)
-        ? haversine(userLat, userLng, geo.latitude, geo.longitude) : null;
-      var addr = (p.location && p.location.formatted_address) || '';
-      return { name: p.name, addr: addr, db: db, dist: dist };
+    // Build items, deduplicating by name
+    var seen  = {};
+    var items = [];
+    elements.forEach(function (el) {
+      var t    = el.tags || {};
+      var name = t.name || '';
+      if (!name || seen[name]) return;
+      seen[name] = true;
+
+      var lat  = el.lat  !== undefined ? el.lat  : (el.center && el.center.lat);
+      var lng  = el.lon  !== undefined ? el.lon  : (el.center && el.center.lon);
+
+      // Build a readable address from OSM address tags
+      var parts = [];
+      if (t['addr:housenumber'] && t['addr:street'])
+        parts.push(t['addr:housenumber'] + ' ' + t['addr:street']);
+      else if (t['addr:street'])
+        parts.push(t['addr:street']);
+      if (t['addr:city'])  parts.push(t['addr:city']);
+      if (t['addr:state']) parts.push(t['addr:state']);
+      var addr = parts.join(', ');
+
+      items.push({
+        name: name,
+        addr: addr,
+        db:   findDbEntry(name),
+        dist: (lat && lng && userLat !== null) ? haversine(userLat, userLng, lat, lng) : null
+      });
     });
 
-    // Tag filter: only exclude if we know the restaurant doesn't qualify
+    // Sort closest first
+    items.sort(function (a, b) { return (a.dist || 1e9) - (b.dist || 1e9); });
+
+    // Tag filter — only exclude results we can positively identify as non-matching
+    var filterKeys = filterMap[activeFilter];
     if (filterKeys) {
       items = items.filter(function (item) {
         return item.db && item.db.tags.some(function (t) { return filterKeys.includes(t.key); });
@@ -553,14 +580,20 @@ function searchFoursquare(query) {
     list.innerHTML = items.map(function (item) {
       var distStr = item.dist !== null
         ? (item.dist < 10 ? item.dist.toFixed(1) : Math.round(item.dist)) + ' mi · ' : '';
-      var icon  = item.db ? item.db.icon : '🍽️';
-      var tags  = item.db ? item.db.tags : [{ key: 'unknown', text: 'Not yet rated', cls: 'tag-unknown' }];
-      var score = item.db ? item.db.score : null;
-      return cardHTML(icon, item.name, distStr + item.addr, tags, score);
+      return cardHTML(
+        item.db ? item.db.icon : '🍽️',
+        item.name,
+        distStr + item.addr,
+        item.db ? item.db.tags : [{ key: 'unknown', text: 'Not yet rated', cls: 'tag-unknown' }],
+        item.db ? item.db.score : null
+      );
     }).join('') +
-    '<p class="places-note">Restaurant data from Foursquare · Dietary ratings by CleanPlate</p>';
+    '<p class="places-note">Restaurant data from OpenStreetMap · Dietary ratings by CleanPlate</p>';
   })
-  .catch(function () { label.textContent = ''; list.innerHTML = noResultsHTML(); });
+  .catch(function () {
+    label.textContent = '';
+    list.innerHTML = noResultsHTML();
+  });
 }
 
 // ── Card & empty-state HTML builders ─────────────────────────────────────────
