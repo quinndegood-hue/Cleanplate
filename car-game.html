@@ -611,6 +611,7 @@ class Game {
     this.player=this.cars[0];
     this.cam.x=this.player.x; this.cam.y=this.player.y;
     this.countdown=3.999;
+    this.lapPopup=null;
     this.state=STATE.COUNTDOWN;
     this.raceTime=0;
     this.finishOrder=[];
@@ -696,6 +697,7 @@ class Game {
     this.updateNitro(dt);
     this.updateWeather(dt);
     this.updateWrongWay(dt);
+    if(this.lapPopup){ this.lapPopup.timer-=dt; if(this.lapPopup.timer<=0) this.lapPopup=null; }
     this.particles.update(dt);
     this.updateCamera(dt);
     this.updatePlaces();
@@ -764,6 +766,13 @@ class Game {
         const lt=this.raceTime - car.lapStart;
         car.lapStart=this.raceTime;
         if(car.lap>0) car.lapTimes.push(lt);
+        if(car.isPlayer && car.lap>0 && car.lap<=this.totalLaps){
+          // lap delta vs best-so-far (stored best on race start, then live bests)
+          if(car.bestLapSoFar===undefined){ const rec=this.best[t.def.name]; car.bestLapSoFar=(rec&&rec.lap)?rec.lap:Infinity; }
+          const delta = lt - car.bestLapSoFar;
+          this.lapPopup={ lap:car.lap, delta: isFinite(car.bestLapSoFar)?delta:null, timer:2.6 };
+          if(lt<car.bestLapSoFar){ car.bestLapSoFar=lt; audio.blip(880,0.14,'square',0.2); }
+        }
         if(car.lap>this.totalLaps){
           car.finished=true;
           this.finishOrder.push(car);
@@ -1218,6 +1227,9 @@ class Game {
     if(this.showTouch) this.drawSpeedo(VW-60,138,44,p);
     else this.drawSpeedo(VW-96,VH-96,72,p);
 
+    // speed lines while boosting
+    if(p.boost>0 && p.speed>200) this.drawSpeedLines(p);
+
     // nitro meter
     this.drawNitro(p);
 
@@ -1226,6 +1238,22 @@ class Game {
 
     // drift score / combo
     this.drawDriftScore();
+
+    // lap completion popup with delta
+    if(this.lapPopup && this.state===STATE.RACE){
+      const lp=this.lapPopup, a=clamp(lp.timer/2.6,0,1);
+      const rise=(1-a)*18;
+      ctx.textAlign='center'; ctx.globalAlpha=clamp(a*2,0,1);
+      ctx.font='bold 24px system-ui'; ctx.fillStyle='#e8eef7';
+      ctx.fillText(`LAP ${lp.lap}`,VW/2,VH*0.2-rise);
+      if(lp.delta!==null){
+        const faster=lp.delta<0;
+        ctx.font='bold 20px system-ui'; ctx.fillStyle=faster?'#5ef08a':'#ff5d6c';
+        const s=(faster?'-':'+')+fmtTime(Math.abs(lp.delta));
+        ctx.fillText(s,VW/2,VH*0.2+24-rise);
+      }
+      ctx.globalAlpha=1; ctx.textAlign='left';
+    }
 
     // wrong-way warning
     if(this.player.wrongTimer>0.5 && this.state===STATE.RACE){
@@ -1242,10 +1270,27 @@ class Game {
       const c=Math.ceil(this.countdown);
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(0,0,VW,VH);
-      ctx.font='bold 120px system-ui';
+      // F1 start lights
+      const lit=this.countdown>0 ? clamp(Math.ceil(5*(1-this.countdown/4)),0,5) : 0;
+      const go=this.countdown<=0;
+      const n=5, gap=14, r=17, totalW=n*(r*2)+(n-1)*gap;
+      const lx=VW/2-totalW/2+r, ly=VH*0.32;
+      ctx.fillStyle='rgba(15,18,26,0.9)';
+      roundRect(ctx,lx-r-16,ly-r-12,totalW+32,r*2+24,10); ctx.fill();
+      for(let i=0;i<n;i++){
+        const x=lx+i*(r*2+gap);
+        ctx.beginPath(); ctx.arc(x,ly,r,0,TAU);
+        if(go){ ctx.fillStyle='#28331f'; }
+        else ctx.fillStyle = i<lit ? '#ff2b3a' : '#331016';
+        ctx.fill();
+        if(!go && i<lit){ ctx.fillStyle='rgba(255,120,120,0.5)'; ctx.beginPath(); ctx.arc(x-r*0.3,ly-r*0.3,r*0.4,0,TAU); ctx.fill(); }
+        if(go){ ctx.fillStyle='#5ef08a'; ctx.beginPath(); ctx.arc(x,ly,r,0,TAU); ctx.fill();
+          ctx.fillStyle='rgba(200,255,210,0.6)'; ctx.beginPath(); ctx.arc(x-r*0.3,ly-r*0.3,r*0.4,0,TAU); ctx.fill(); }
+      }
+      ctx.font='bold 110px system-ui';
       ctx.fillStyle = c>0?'#ffcf3f':'#5ef08a';
-      const scale=1+(1-(this.countdown%1));
-      ctx.save(); ctx.translate(VW/2,VH/2); ctx.scale(scale,scale);
+      const scale=1+(1-(this.countdown%1))*0.9;
+      ctx.save(); ctx.translate(VW/2,VH*0.56); ctx.scale(scale,scale);
       ctx.fillText(c>0?c:'GO!',0,0); ctx.restore();
       ctx.textAlign='left'; ctx.textBaseline='top';
     }
@@ -1275,6 +1320,31 @@ class Game {
     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2; ctx.stroke();
     ctx.fillStyle='#e8eef7'; ctx.fillRect(pb.x-6,pb.y-7,4,14); ctx.fillRect(pb.x+2,pb.y-7,4,14);
     ctx.textAlign='left'; ctx.textBaseline='top';
+  }
+
+  drawSpeedLines(p){
+    const cx=VW/2, cy=VH/2;
+    const strength=clamp((p.speed-190)/280,0,1);
+    ctx.save();
+    ctx.lineCap='round';
+    const nitro=p.wantNitro && (p.nitro||0)>0;
+    const col=nitro?'255,180,90':'190,230,255';
+    ctx.strokeStyle=`rgba(${col},0.5)`;
+    ctx.lineWidth=3;
+    const count=22;
+    const R=Math.hypot(VW,VH)/2;
+    for(let i=0;i<count;i++){
+      const a=(i/count)*TAU + Math.sin(this.time*3+i)*0.04;
+      const r0=Math.min(VW,VH)*0.40;
+      const jitter=(Math.sin(this.time*22+i*7)*0.5+0.5);
+      const r1=r0 + 50 + (i%3)*28 + jitter*40;
+      ctx.globalAlpha=(0.2+0.5*strength)*jitter;
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(a)*r0, cy+Math.sin(a)*r0);
+      ctx.lineTo(cx+Math.cos(a)*Math.min(r1,R), cy+Math.sin(a)*Math.min(r1,R));
+      ctx.stroke();
+    }
+    ctx.restore(); ctx.globalAlpha=1;
   }
 
   drawNitro(p){
