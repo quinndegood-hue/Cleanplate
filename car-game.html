@@ -174,6 +174,15 @@ class Track {
       const off=side*this.width*(0.34+Math.random()*0.1);
       this.cones.push(this._newCone(c.x+nr.x*off, c.y+nr.y*off));
     }
+    // Worn-asphalt patches for road texture
+    this.tarmacPatches=[];
+    for(let k=0;k<46;k++){
+      const idx=Math.floor(rand(0,this.n));
+      const c=this.center[idx], nr=this.nrm[idx];
+      const off=rand(-1,1)*this.width*0.42;
+      this.tarmacPatches.push({x:c.x+nr.x*off, y:c.y+nr.y*off, rx:rand(14,36), ry:rand(9,20),
+        rot:Math.atan2(this.tan[idx].y,this.tan[idx].x)});
+    }
     // Scenery: trees & rocks scattered off the road
     this.scenery=[];
     let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
@@ -643,6 +652,7 @@ class Game {
     this.countdown=3.999;
     this.lapPopup=null;
     this.confetti=null;
+    this.finishGrace=undefined;
     this.state=STATE.COUNTDOWN;
     this.raceTime=0;
     this.finishOrder=[];
@@ -750,8 +760,15 @@ class Game {
     const squealAmt=(this.player.driftAmt>0.4 && this.player.speed>70 && this.track.onRoad(this.player.x,this.player.y))?clamp(this.player.driftAmt,0,1):0;
     audio.squeal(squealAmt);
 
-    // race finished?
-    if(this.finishOrder.length===this.cars.length){
+    // race finished? end when everyone's in, or a grace period after the
+    // player finishes (so a stuck AI can never soft-lock the race)
+    if(this.player.finished){
+      if(this.finishGrace===undefined) this.finishGrace=7;
+      this.finishGrace-=dt;
+    }
+    if(this.finishOrder.length===this.cars.length || (this.player.finished && this.finishGrace<=0)){
+      // any car not yet finished is a DNF but still ranked by progress
+      this.updatePlaces();
       this.state=STATE.RESULTS;
       this.saveResult();
     }
@@ -1101,6 +1118,16 @@ class Game {
     }
     ctx.closePath();
     ctx.fillStyle=th.road; ctx.fill();
+
+    // worn-asphalt patches (subtle texture)
+    ctx.save(); ctx.globalAlpha=0.55; ctx.fillStyle=th.road2;
+    for(const p of t.tarmacPatches){
+      const sx=p.x-cam.x, sy=p.y-cam.y;
+      if(sx<-40||sx>VW+40||sy<-40||sy>VH+40) continue;
+      ctx.save(); ctx.translate(sx,sy); ctx.rotate(p.rot);
+      ctx.beginPath(); ctx.ellipse(0,0,p.rx,p.ry,0,0,TAU); ctx.fill(); ctx.restore();
+    }
+    ctx.restore();
 
     // rumble strips on edges
     for(const side of [1,-1]){
