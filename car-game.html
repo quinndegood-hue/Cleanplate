@@ -818,7 +818,7 @@ class Game {
           this.lapPopup={ lap:car.lap, delta: isFinite(car.bestLapSoFar)?delta:null, timer:2.6 };
           if(lt<car.bestLapSoFar){ car.bestLapSoFar=lt; audio.blip(880,0.14,'square',0.2); }
         }
-        if(car.lap>this.totalLaps){
+        if(car.lap>=this.totalLaps){
           car.finished=true;
           this.finishOrder.push(car);
           car.finishTime=this.raceTime;
