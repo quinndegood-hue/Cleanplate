@@ -123,6 +123,58 @@ class Track {
     this._buildFrames();
     this._buildCheckpoints();
     this.length = this._perimeter();
+    this._buildFeatures();
+  }
+  _buildFeatures(){
+    // deterministic-ish scatter so a track looks the same each visit this session
+    const t=this;
+    // Boost pads: a handful placed on the racing line at spaced indices
+    this.boostPads=[];
+    const padCount=4;
+    for(let k=0;k<padCount;k++){
+      const idx=Math.floor((k+0.5)/padCount*this.n);
+      const c=this.center[idx], nr=this.nrm[idx];
+      const off=rand(-1,1)*this.width*0.2;
+      this.boostPads.push({x:c.x+nr.x*off, y:c.y+nr.y*off,
+        angle:Math.atan2(this.tan[idx].y,this.tan[idx].x), cool:0, idx});
+    }
+    // Oil slicks: placed near a corner apex, on the road
+    this.oilSlicks=[];
+    const oilCount=this.def.theme==='night'?4:3;
+    for(let k=0;k<oilCount;k++){
+      const idx=Math.floor(rand(0,this.n));
+      const c=this.center[idx], nr=this.nrm[idx];
+      const off=rand(-1,1)*this.width*0.3;
+      this.oilSlicks.push({x:c.x+nr.x*off, y:c.y+nr.y*off, r:rand(26,40)});
+    }
+    // Cones: lined up near an edge to nudge the racing line
+    this.cones=[];
+    for(let k=0;k<10;k++){
+      const idx=Math.floor(rand(0,this.n));
+      const c=this.center[idx], nr=this.nrm[idx];
+      const side=Math.random()<0.5?1:-1;
+      const off=side*this.width*(0.34+Math.random()*0.1);
+      this.cones.push(this._newCone(c.x+nr.x*off, c.y+nr.y*off));
+    }
+    // Scenery: trees & rocks scattered off the road
+    this.scenery=[];
+    let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+    for(const c of this.center){minx=Math.min(minx,c.x);miny=Math.min(miny,c.y);maxx=Math.max(maxx,c.x);maxy=Math.max(maxy,c.y);}
+    minx-=260;miny-=260;maxx+=260;maxy+=260;
+    let tries=0;
+    while(this.scenery.length<90 && tries<1400){
+      tries++;
+      const x=rand(minx,maxx), y=rand(miny,maxy);
+      const {dist}=this.nearestIndex(x,y);
+      if(dist < this.width*0.5+34) continue; // keep off the tarmac & rumble
+      const type=Math.random()<0.78?'tree':'rock';
+      this.scenery.push({x,y,type,r:type==='tree'?rand(12,22):rand(7,13),tint:Math.random()});
+    }
+  }
+  _newCone(x,y){ return {x,y,ox:x,oy:y,vx:0,vy:0,hit:0}; }
+  resetFeatures(){
+    for(const p of this.boostPads) p.cool=0;
+    for(const c of this.cones){ c.x=c.ox; c.y=c.oy; c.vx=0; c.vy=0; c.hit=0; }
   }
   _buildFrames(){
     // per-sample tangent & normal for road edges
@@ -259,7 +311,8 @@ class Car {
     let lat = -this.vx*sin + this.vy*cos;
 
     const onRoad = track.onRoad(this.x,this.y);
-    const gripBase = onRoad?1:0.55;
+    let gripBase = onRoad?1:0.55;
+    if(this.onOil) gripBase*=0.32;   // oil slick: sudden loss of grip
 
     // Engine force
     const maxSpeed = 430 * (this.boost>0?1.5:1);
@@ -540,6 +593,8 @@ class Game {
     // AI
     for(let i=1;i<this.cars.length;i++) this.updateAI(this.cars[i],dt);
 
+    // terrain flags (oil) must be set before physics reads them
+    for(const c of this.cars) this.applyTerrain(c);
     // physics + effects
     for(const c of this.cars){
       c.applyPhysics(dt,this.track);
@@ -547,7 +602,8 @@ class Game {
       this.spawnCarEffects(c,dt);
     }
     this.resolveCollisions();
-    this.checkObstacles();
+    this.updateCones(dt);
+    this.checkObstacles(dt);
 
     this.particles.update(dt);
     this.updateCamera(dt);
@@ -661,7 +717,46 @@ class Game {
       }
     }
   }
-  checkObstacles(){ /* reserved for future obstacle interactions */ }
+  applyTerrain(car){
+    car.onOil=false;
+    for(const o of this.track.oilSlicks){
+      if((car.x-o.x)**2+(car.y-o.y)**2 < o.r*o.r){ car.onOil=true; break; }
+    }
+  }
+  updateCones(dt){
+    for(const c of this.track.cones){
+      if(c.hit>0){
+        c.x+=c.vx*dt; c.y+=c.vy*dt;
+        c.vx*=0.9; c.vy*=0.9; c.hit-=dt;
+      }
+    }
+  }
+  checkObstacles(dt){
+    // boost pads
+    for(const car of this.cars){
+      for(const p of this.track.boostPads){
+        if(p.cool>0){ p.cool-=dt; continue; }
+        if((car.x-p.x)**2+(car.y-p.y)**2 < 30*30){
+          car.boost=Math.max(car.boost,1.8);
+          p.cool=1.2;
+          if(car.isPlayer){ audio.blip(720,0.12,'square',0.28); audio.blip(1080,0.14,'square',0.2); }
+          for(let i=0;i<6;i++) this.particles.spark(car.x,car.y,rand(0,TAU));
+        }
+      }
+      // cones — knock them and lose a little speed
+      for(const c of this.track.cones){
+        const dx=c.x-car.x, dy=c.y-car.y;
+        if(dx*dx+dy*dy < 20*20){
+          const d=Math.hypot(dx,dy)||1;
+          c.vx=dx/d*Math.max(140,car.speed*0.7); c.vy=dy/d*Math.max(140,car.speed*0.7);
+          c.hit=1.2;
+          car.vx*=0.9; car.vy*=0.9;
+          if(car.isPlayer){ audio.blip(200,0.08,'triangle',0.2); this.cam.shake=Math.min(4,this.cam.shake+2); }
+          this.particles.dust(c.x,c.y);
+        }
+      }
+    }
+  }
 
   updateCamera(dt){
     const p=this.player;
@@ -713,6 +808,15 @@ class Game {
     if(this.state!==STATE.MENU) this.drawWorld(cam);
     ctx.restore();
 
+    // atmospheric vignette (screen space)
+    if(this.state!==STATE.MENU){
+      const dark=this.track.def.theme==='night'?0.6:0.28;
+      const vg=ctx.createRadialGradient(VW/2,VH/2,Math.min(VW,VH)*0.35,VW/2,VH/2,Math.max(VW,VH)*0.72);
+      vg.addColorStop(0,'rgba(0,0,0,0)');
+      vg.addColorStop(1,`rgba(0,0,0,${dark})`);
+      ctx.fillStyle=vg; ctx.fillRect(0,0,VW,VH);
+    }
+
     // HUD (screen space, not affected by camera)
     this.drawHUD();
   }
@@ -731,14 +835,19 @@ class Game {
     }
 
     this.drawTrack(cam);
+    this.drawOil(cam);
     this.skids.draw(ctx,cam);
+    this.drawBoostPads(cam);
     this.drawStartLine(cam);
+    this.drawCones(cam);
 
     // draw cars sorted so player is on top
     const order=[...this.cars].sort((a,b)=>(a.isPlayer?1:0)-(b.isPlayer?1:0));
     for(const c of order) c.draw(ctx,cam,this.time);
 
     this.particles.draw(ctx,cam);
+    this.drawScenery(cam);
+    if(this.track.def.theme==='night') this.drawNightLights(cam);
   }
 
   drawTrack(cam){
@@ -790,6 +899,100 @@ class Game {
     for(let r=0;r<rows;r++)for(let col=0;col<cols;col++){
       ctx.fillStyle=((r+col)%2===0)?'#f5f5f5':'#181818';
       ctx.fillRect(-2 + r*ch - rows*ch/2, -W/2+col*cw, ch, cw);
+    }
+    ctx.restore();
+  }
+
+  drawOil(cam){
+    for(const o of this.track.oilSlicks){
+      const x=o.x-cam.x, y=o.y-cam.y;
+      const g=ctx.createRadialGradient(x,y,2,x,y,o.r);
+      g.addColorStop(0,'rgba(12,10,18,0.85)');
+      g.addColorStop(0.7,'rgba(20,16,30,0.6)');
+      g.addColorStop(1,'rgba(20,16,30,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,o.r,0,TAU); ctx.fill();
+      // oily sheen
+      ctx.fillStyle='rgba(90,120,150,0.18)';
+      ctx.beginPath(); ctx.arc(x-o.r*0.2,y-o.r*0.2,o.r*0.4,0,TAU); ctx.fill();
+    }
+  }
+  drawBoostPads(cam){
+    for(const p of this.track.boostPads){
+      ctx.save();
+      ctx.translate(p.x-cam.x,p.y-cam.y);
+      ctx.rotate(p.angle);
+      const active=p.cool<=0;
+      const pulse=0.5+0.5*Math.sin(this.time*8);
+      for(let k=0;k<3;k++){
+        const a=active?(0.35+pulse*0.55*(1-k*0.25)):0.12;
+        ctx.fillStyle=`rgba(57,208,255,${a})`;
+        ctx.beginPath();
+        const bx=(k-1)*11;
+        ctx.moveTo(bx-8,-15); ctx.lineTo(bx+6,0); ctx.lineTo(bx-8,15);
+        ctx.lineTo(bx-2,0); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+  drawCones(cam){
+    for(const c of this.track.cones){
+      const x=c.x-cam.x, y=c.y-cam.y;
+      ctx.fillStyle='rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(x+2,y+3,7,4,0,0,TAU); ctx.fill();
+      // cone body
+      ctx.fillStyle='#ff7a1a';
+      ctx.beginPath(); ctx.moveTo(x,y-9); ctx.lineTo(x+6,y+5); ctx.lineTo(x-6,y+5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#ffffff';
+      ctx.fillRect(x-4,y-2,8,3);
+      if(c.hit>0){ // tumble tint
+        ctx.fillStyle='rgba(255,255,255,0.15)';
+        ctx.beginPath(); ctx.moveTo(x,y-9); ctx.lineTo(x+6,y+5); ctx.lineTo(x-6,y+5); ctx.closePath(); ctx.fill();
+      }
+    }
+  }
+  drawScenery(cam){
+    for(const s of this.track.scenery){
+      const x=s.x-cam.x, y=s.y-cam.y;
+      if(x<-40||x>VW+40||y<-40||y>VH+40) continue; // cull
+      ctx.fillStyle='rgba(0,0,0,0.28)';
+      ctx.beginPath(); ctx.ellipse(x+s.r*0.4,y+s.r*0.5,s.r*0.9,s.r*0.5,0,0,TAU); ctx.fill();
+      if(s.type==='tree'){
+        ctx.fillStyle='#5a3d24';
+        ctx.fillRect(x-2,y-1,4,6);
+        const green=lerp(70,120,s.tint);
+        ctx.fillStyle=`rgb(${Math.round(40+s.tint*30)},${Math.round(green)},${Math.round(40+s.tint*20)})`;
+        ctx.beginPath(); ctx.arc(x,y-2,s.r,0,TAU); ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,0.08)';
+        ctx.beginPath(); ctx.arc(x-s.r*0.3,y-s.r*0.4,s.r*0.5,0,TAU); ctx.fill();
+      }else{
+        const g=Math.round(110+s.tint*40);
+        ctx.fillStyle=`rgb(${g},${g},${g+6})`;
+        ctx.beginPath(); ctx.arc(x,y,s.r,0,TAU); ctx.fill();
+        ctx.fillStyle='rgba(0,0,0,0.2)';
+        ctx.beginPath(); ctx.arc(x+s.r*0.3,y+s.r*0.3,s.r*0.5,0,TAU); ctx.fill();
+      }
+    }
+  }
+  drawNightLights(cam){
+    // headlight cones + vignette for night atmosphere
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    for(const c of this.cars){
+      const x=c.x-cam.x, y=c.y-cam.y;
+      const dirx=Math.cos(c.angle), diry=Math.sin(c.angle);
+      const len=120, spread=42;
+      const tipx=x+dirx*len, tipy=y+diry*len;
+      const g=ctx.createRadialGradient(x,y,4,x,y,len);
+      g.addColorStop(0,'rgba(255,240,190,0.28)');
+      g.addColorStop(1,'rgba(255,240,190,0)');
+      ctx.fillStyle=g;
+      const px=-diry, py=dirx;
+      ctx.beginPath();
+      ctx.moveTo(x+px*6,y+py*6);
+      ctx.lineTo(tipx+px*spread,tipy+py*spread);
+      ctx.lineTo(tipx-px*spread,tipy-py*spread);
+      ctx.lineTo(x-px*6,y-py*6);
+      ctx.closePath(); ctx.fill();
     }
     ctx.restore();
   }
