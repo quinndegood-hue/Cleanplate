@@ -516,6 +516,7 @@ class Game {
     this.showTouch = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) || ('ontouchstart' in window) || navigator.maxTouchPoints>0;
     this.touch={left:false,right:false,gas:false,brake:false,hbrake:false,nitro:false};
     this._pointers={}; // pointerId -> button id
+    this._uiButtons=[]; // rebuilt each frame for clickable menu/pause/results UI
     this._bindMenu();
     this._bindTouch();
     this.setupTrack();
@@ -546,10 +547,10 @@ class Game {
     const down=e=>{
       audio.init();
       const [x,y]=toXY(e);
-      // menu / results: tap to advance
-      if(this.state===STATE.MENU){ this.startRace(); return; }
-      if(this.state===STATE.RESULTS){ this.state=STATE.MENU; return; }
-      if(this.state===STATE.PAUSE){ this.state=STATE.RACE; return; }
+      // on-screen UI buttons (menus, results, pause) — mouse + touch
+      for(const b of this._uiButtons){
+        if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h){ audio.blip(360,0.05); b.action(); return; }
+      }
       if(this.showTouch){
         if((this.state===STATE.RACE||this.state===STATE.COUNTDOWN) && inPause(x,y)){ this.state=STATE.PAUSE; return; }
         const b=this._hitButton(x,y);
@@ -1176,7 +1177,19 @@ class Game {
     ctx.restore();
   }
 
+  uiButton(x,y,w,h,label,action,opts={}){
+    this._uiButtons.push({x,y,w,h,action});
+    ctx.fillStyle=opts.fill||'rgba(255,255,255,0.07)';
+    roundRect(ctx,x,y,w,h,9); ctx.fill();
+    ctx.strokeStyle=opts.stroke||'rgba(255,255,255,0.28)'; ctx.lineWidth=2; roundRect(ctx,x,y,w,h,9); ctx.stroke();
+    ctx.fillStyle=opts.color||'#e8eef7'; ctx.font=opts.font||'bold 20px system-ui';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(label,x+w/2,y+h/2+1);
+    ctx.textAlign='left'; ctx.textBaseline='top';
+  }
+
   drawHUD(){
+    this._uiButtons=[];
     if(this.state===STATE.MENU){ this.drawMenu(); return; }
     const p=this.player;
     // top-left: lap + place + time
@@ -1374,39 +1387,56 @@ class Game {
     ctx.restore();
 
     ctx.textAlign='center';
+    ctx.textBaseline='alphabetic';
     ctx.fillStyle='#ffcf3f'; ctx.font='bold 68px system-ui';
-    ctx.fillText('APEX DRIFT',VW/2,VH*0.2);
+    ctx.fillText('APEX DRIFT',VW/2,VH*0.18);
     ctx.fillStyle='#8ab9d0'; ctx.font='16px system-ui';
-    ctx.fillText('top-down drift racing',VW/2,VH*0.2+46);
+    ctx.fillText('top-down drift racing',VW/2,VH*0.18+28);
+    ctx.textBaseline='top';
 
+    const rec=this.best[TRACKS[this.trackIdx].name];
     const items=[
-      {label:'Track', value:TRACKS[this.trackIdx].name},
-      {label:'Laps', value:this.totalLaps},
-      {label:'Opponents', value:this.aiCount},
+      {label:'Track', value:TRACKS[this.trackIdx].name, dec:()=>{this.trackIdx=(this.trackIdx+TRACKS.length-1)%TRACKS.length; this.setupTrack();}, inc:()=>{this.trackIdx=(this.trackIdx+1)%TRACKS.length; this.setupTrack();}},
+      {label:'Laps', value:this.totalLaps, dec:()=>{this.totalLaps=clamp(this.totalLaps-1,1,9);}, inc:()=>{this.totalLaps=clamp(this.totalLaps+1,1,9);}},
+      {label:'Opponents', value:this.aiCount, dec:()=>{this.aiCount=clamp(this.aiCount-1,0,5);}, inc:()=>{this.aiCount=clamp(this.aiCount+1,0,5);}},
     ];
-    const baseY=VH*0.44;
+    const baseY=VH*0.42;
     items.forEach((it,i)=>{
-      const y=baseY+i*46; const sel=i===this.menuSel;
-      ctx.fillStyle=sel?'#ffcf3f':'#c7d2e0'; ctx.font=`${sel?'bold ':''}24px system-ui`;
-      ctx.fillText(`${it.label}:  ‹ ${it.value} ›`,VW/2,y);
+      const y=baseY+i*48; const sel=i===this.menuSel;
+      ctx.textAlign='center';
+      ctx.fillStyle=sel?'#ffcf3f':'#c7d2e0'; ctx.font=`${sel?'bold ':''}23px system-ui`;
+      ctx.fillText(`${it.label}:  ${it.value}`,VW/2,y);
+      // clickable arrows
+      const ah=34;
+      this.uiButton(VW/2-190,y-ah/2,ah,ah,'‹',()=>{this.menuSel=i; it.dec(); audio.blip(360,0.05);},{font:'bold 24px system-ui',fill:'rgba(255,255,255,0.05)'});
+      this.uiButton(VW/2+156,y-ah/2,ah,ah,'›',()=>{this.menuSel=i; it.inc(); audio.blip(360,0.05);},{font:'bold 24px system-ui',fill:'rgba(255,255,255,0.05)'});
     });
-    ctx.fillStyle='#5ef08a'; ctx.font='bold 22px system-ui';
-    ctx.fillText(this.showTouch?'▶  Tap Anywhere to Race':'▶  Press ENTER to Race',VW/2,baseY+3*46+24);
-    ctx.fillStyle='#6a7a8c'; ctx.font='13px system-ui';
+    // best record for selected track
+    if(rec){
+      ctx.textAlign='center'; ctx.font='13px system-ui'; ctx.fillStyle='#8ab9d0';
+      const parts=[]; if(rec.lap) parts.push(`best lap ${fmtTime(rec.lap)}`); if(rec.drift) parts.push(`drift ${rec.drift.toLocaleString()}`);
+      if(parts.length) ctx.fillText(parts.join('   ·   '),VW/2,baseY+3*48+2);
+    }
+    // Race button
+    this.uiButton(VW/2-120,baseY+3*48+18,240,52,'▶  RACE',()=>{this.startRace();},{color:'#5ef08a',fill:'rgba(94,240,138,0.12)',stroke:'rgba(94,240,138,0.5)',font:'bold 24px system-ui'});
+    ctx.fillStyle='#6a7a8c'; ctx.font='13px system-ui'; ctx.textAlign='center';
     const hint=this.showTouch
-      ? 'on-screen pads to drive · ✋ handbrake · tap ❚❚ to pause'
-      : '↑↓ select · ←→ change · WASD/Arrows drive · SPACE handbrake · P pause · M mute';
-    ctx.fillText(hint,VW/2,VH-30);
+      ? 'tap ‹ › to change · pads to drive · ✋ handbrake · 🔥 nitro'
+      : '↑↓ select · ←→ change · WASD/Arrows drive · SPACE handbrake · SHIFT nitro · P pause · M mute';
+    ctx.fillText(hint,VW/2,VH-28);
     ctx.textAlign='left';
   }
 
   drawPause(){
-    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,VW,VH);
+    ctx.fillStyle='rgba(0,0,0,0.62)'; ctx.fillRect(0,0,VW,VH);
     ctx.textAlign='center';
-    ctx.fillStyle='#ffcf3f'; ctx.font='bold 54px system-ui'; ctx.fillText('PAUSED',VW/2,VH/2-40);
-    ctx.fillStyle='#c7d2e0'; ctx.font='20px system-ui';
-    ctx.fillText('P / ESC — resume   ·   R — restart   ·   Q — menu',VW/2,VH/2+20);
+    ctx.fillStyle='#ffcf3f'; ctx.font='bold 52px system-ui'; ctx.fillText('PAUSED',VW/2,VH*0.32);
     ctx.textAlign='left';
+    const bw=220, bx=VW/2-bw/2; let by=VH*0.42;
+    this.uiButton(bx,by,bw,46,'▶  Resume',()=>{this.state=STATE.RACE;},{color:'#5ef08a'}); by+=58;
+    this.uiButton(bx,by,bw,46,'↻  Restart',()=>{this.startRace();}); by+=58;
+    this.uiButton(bx,by,bw,46,'⤶  Main Menu',()=>{this.state=STATE.MENU;}); by+=58;
+    this.uiButton(bx,by,bw,40,(this.muted?'🔇':'🔊')+'  Sound',()=>{this.toggleMute();},{font:'16px system-ui',color:'#8ab9d0'});
   }
 
   drawResults(){
@@ -1428,9 +1458,10 @@ class Game {
     if(isFinite(bl)){ ctx.fillStyle='#8ab9d0'; ctx.font='16px system-ui'; ctx.fillText(`best lap ${fmtTime(bl)}`,VW/2,ry); ry+=24; }
     const ds=(this.player.driftScore||0)+Math.round(this.player.chain||0);
     if(ds>0){ ctx.fillStyle='#ffcf3f'; ctx.font='bold 18px system-ui'; ctx.fillText(`drift score  ${ds.toLocaleString()}`,VW/2,ry); }
-    ctx.fillStyle='#c7d2e0'; ctx.font='18px system-ui';
-    ctx.fillText('ENTER — menu    ·    R — race again',VW/2,VH*0.85);
     ctx.textAlign='left';
+    const bw=200, gap=16, total=bw*2+gap, bx=VW/2-total/2, by=VH*0.84;
+    this.uiButton(bx,by,bw,48,'↻  Race Again',()=>{this.startRace();},{color:'#5ef08a'});
+    this.uiButton(bx+bw+gap,by,bw,48,'⤶  Main Menu',()=>{this.state=STATE.MENU;});
   }
 }
 
