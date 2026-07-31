@@ -1479,6 +1479,7 @@ function nearIndex(i,target,n,tol){ let d=Math.abs(i-target); d=Math.min(d,n-d);
    MAIN LOOP
    ========================================================================= */
 const game=new Game();
+window.game=game;   // exposed for debugging / tinkering in the console
 let last=performance.now();
 function frame(now){
   let dt=(now-last)/1000; last=now;
