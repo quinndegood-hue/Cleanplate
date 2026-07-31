@@ -605,6 +605,7 @@ class Game {
     this.updateCones(dt);
     this.checkObstacles(dt);
 
+    this.updateDriftScore(dt);
     this.particles.update(dt);
     this.updateCamera(dt);
     this.updatePlaces();
@@ -758,6 +759,29 @@ class Game {
     }
   }
 
+  updateDriftScore(dt){
+    const p=this.player;
+    if(p.driftScore===undefined){ p.driftScore=0; p.chain=0; p.mult=1; p.driftIdle=99; p.chainFade=0; p.bestChain=0; p.lastBank=0; }
+    const drifting = p.driftAmt>0.5 && p.speed>90 && this.track.onRoad(p.x,p.y) && !p.finished;
+    if(drifting){
+      p.chain += p.speed*p.driftAmt*dt*0.28*p.mult;
+      p.driftIdle=0;
+      p.mult=clamp(p.mult+dt*0.55,1,6);
+      p.chainFade=1;
+    } else {
+      p.driftIdle+=dt;
+      if(p.driftIdle>0.4 && p.chain>0){
+        const banked=Math.round(p.chain);
+        p.driftScore+=banked; p.lastBank=banked;
+        p.bestChain=Math.max(p.bestChain,banked);
+        if(banked>400){ audio.blip(520,0.08,'square',0.18); audio.blip(780,0.1,'square',0.14); }
+        p.chain=0; p.mult=1; p.bankFlash=0.9;
+      }
+      p.chainFade=Math.max(0,p.chainFade-dt*1.4);
+      if(p.bankFlash>0) p.bankFlash-=dt;
+    }
+  }
+
   updateCamera(dt){
     const p=this.player;
     // lead the camera slightly in the direction of travel
@@ -783,12 +807,12 @@ class Game {
   saveResult(){
     const key=this.track.def.name;
     const bestLap=Math.min(...this.player.lapTimes.filter(x=>x>0));
-    if(isFinite(bestLap)){
-      if(!this.best[key]||bestLap<this.best[key].lap){
-        this.best[key]={lap:bestLap};
-        this._saveBest();
-      }
-    }
+    const rec=this.best[key]||{};
+    let changed=false;
+    if(isFinite(bestLap) && (!rec.lap || bestLap<rec.lap)){ rec.lap=bestLap; changed=true; }
+    const ds=(this.player.driftScore||0)+Math.round(this.player.chain||0);
+    if(ds>(rec.drift||0)){ rec.drift=ds; changed=true; }
+    if(changed){ this.best[key]=rec; this._saveBest(); }
   }
 
   /* --------------------------- render ---------------------------------- */
@@ -1035,6 +1059,9 @@ class Game {
     // minimap
     this.drawMinimap();
 
+    // drift score / combo
+    this.drawDriftScore();
+
     // countdown overlay
     if(this.state===STATE.COUNTDOWN){
       const c=Math.ceil(this.countdown);
@@ -1050,6 +1077,38 @@ class Game {
 
     if(this.state===STATE.PAUSE) this.drawPause();
     if(this.state===STATE.RESULTS) this.drawResults();
+  }
+
+  drawDriftScore(){
+    const p=this.player;
+    ctx.textAlign='center';
+    // running total (always visible, small)
+    if(p.driftScore>0 || p.chain>0){
+      ctx.font='12px system-ui'; ctx.fillStyle='#8ab9d0';
+      ctx.fillText('DRIFT SCORE',VW/2,84);
+      ctx.font='bold 22px system-ui'; ctx.fillStyle='#e8eef7';
+      ctx.fillText((p.driftScore+Math.round(p.chain)).toLocaleString(),VW/2,98);
+    }
+    // active chain
+    if(p.chainFade>0 && p.chain>0){
+      const a=p.chainFade;
+      const scale=1+ (p.mult-1)*0.06;
+      ctx.save(); ctx.translate(VW/2,150); ctx.scale(scale,scale);
+      ctx.globalAlpha=a;
+      ctx.font='bold 34px system-ui'; ctx.fillStyle='#ffcf3f';
+      ctx.fillText(`+${Math.round(p.chain)}`,0,0);
+      ctx.font='bold 20px system-ui'; ctx.fillStyle='#39d0ff';
+      ctx.fillText(`x${p.mult.toFixed(1)}`,0,26);
+      ctx.restore(); ctx.globalAlpha=1;
+    }
+    // bank flash
+    if(p.bankFlash>0){
+      ctx.globalAlpha=clamp(p.bankFlash,0,1);
+      ctx.font='bold 26px system-ui'; ctx.fillStyle='#5ef08a';
+      ctx.fillText(`+${p.lastBank}  BANKED`,VW/2,150);
+      ctx.globalAlpha=1;
+    }
+    ctx.textAlign='left';
   }
 
   drawSpeedo(cx,cy,r,p){
@@ -1153,7 +1212,10 @@ class Game {
       ctx.fillText(`${ordinal(i+1)}   ${c.isPlayer?'YOU':'CPU'}   ${tt}`,VW/2,y);
     });
     const bl=Math.min(...this.player.lapTimes.filter(x=>x>0));
-    if(isFinite(bl)){ ctx.fillStyle='#8ab9d0'; ctx.font='16px system-ui'; ctx.fillText(`best lap ${fmtTime(bl)}`,VW/2,VH*0.32+order.length*34+20);}
+    let ry=VH*0.32+order.length*34+20;
+    if(isFinite(bl)){ ctx.fillStyle='#8ab9d0'; ctx.font='16px system-ui'; ctx.fillText(`best lap ${fmtTime(bl)}`,VW/2,ry); ry+=24; }
+    const ds=(this.player.driftScore||0)+Math.round(this.player.chain||0);
+    if(ds>0){ ctx.fillStyle='#ffcf3f'; ctx.font='bold 18px system-ui'; ctx.fillText(`drift score  ${ds.toLocaleString()}`,VW/2,ry); }
     ctx.fillStyle='#c7d2e0'; ctx.font='18px system-ui';
     ctx.fillText('ENTER — menu    ·    R — race again',VW/2,VH*0.85);
     ctx.textAlign='left';
