@@ -522,6 +522,11 @@ const audio=new Audio();
    ========================================================================= */
 const STATE={MENU:0,COUNTDOWN:1,RACE:2,PAUSE:3,RESULTS:4};
 const CAR_COLORS=['#ff5d6c','#39d0ff','#5ef08a','#ffcf3f','#c77dff','#ff9f40'];
+const DIFFICULTY=[
+  {name:'Easy',   skill:[0.72,0.86], band:0.0016},
+  {name:'Normal', skill:[0.82,0.95], band:0.0011},
+  {name:'Hard',   skill:[0.92,1.00], band:0.0006},
+];
 
 class Game {
   constructor(){
@@ -530,6 +535,7 @@ class Game {
     this.trackIdx=0;
     this.totalLaps=3;
     this.aiCount=3;
+    this.difficulty=1;
     this.cam={x:0,y:0,zoom:1,shake:0};
     this.particles=new Particles();
     this.skids=new Skidmarks();
@@ -629,30 +635,42 @@ class Game {
       const off=(col===0?-1:1)*t.width*0.22;
       const car=new Car(c.x+nr.x*off, c.y+nr.y*off, t.startAngle, CAR_COLORS[i%CAR_COLORS.length], i===0);
       car.nextCP=0; car.aiTargetIdx=t.startIdx;
-      if(i>0){ car.aiSkill=rand(0.82,0.99); car.aiThrottleNoise=rand(0.9,1); }
+      if(i>0){ const dm=DIFFICULTY[this.difficulty]; car.aiSkill=rand(dm.skill[0],dm.skill[1]); car.aiThrottleNoise=rand(0.9,1); }
       this.cars.push(car);
     }
     this.player=this.cars[0];
     this.cam.x=this.player.x; this.cam.y=this.player.y;
     this.countdown=3.999;
     this.lapPopup=null;
+    this.confetti=null;
     this.state=STATE.COUNTDOWN;
     this.raceTime=0;
     this.finishOrder=[];
     audio.blip(440,0.15);
   }
+  getMenuItems(){
+    return [
+      {label:'Track', value:TRACKS[this.trackIdx].name,
+        dec:()=>{this.trackIdx=(this.trackIdx+TRACKS.length-1)%TRACKS.length; this.setupTrack();},
+        inc:()=>{this.trackIdx=(this.trackIdx+1)%TRACKS.length; this.setupTrack();}},
+      {label:'Laps', value:this.totalLaps,
+        dec:()=>{this.totalLaps=clamp(this.totalLaps-1,1,9);}, inc:()=>{this.totalLaps=clamp(this.totalLaps+1,1,9);}},
+      {label:'Opponents', value:this.aiCount,
+        dec:()=>{this.aiCount=clamp(this.aiCount-1,0,5);}, inc:()=>{this.aiCount=clamp(this.aiCount+1,0,5);}},
+      {label:'Difficulty', value:DIFFICULTY[this.difficulty].name,
+        dec:()=>{this.difficulty=(this.difficulty+DIFFICULTY.length-1)%DIFFICULTY.length;},
+        inc:()=>{this.difficulty=(this.difficulty+1)%DIFFICULTY.length;}},
+    ];
+  }
   _bindMenu(){
     window.addEventListener('keydown',e=>{
       const k=e.key.toLowerCase();
       if(this.state===STATE.MENU){
-        if(k==='arrowup'||k==='w'){ this.menuSel=(this.menuSel+2)%3; audio.init(); audio.blip(300,0.05); }
-        else if(k==='arrowdown'||k==='s'){ this.menuSel=(this.menuSel+1)%3; audio.init(); audio.blip(300,0.05); }
-        else if(k==='arrowleft'||k==='arrowright'){
-          if(this.menuSel===0){ this.trackIdx=(this.trackIdx+(k==='arrowleft'?TRACKS.length-1:1))%TRACKS.length; this.setupTrack(); }
-          else if(this.menuSel===1){ this.totalLaps=clamp(this.totalLaps+(k==='arrowleft'?-1:1),1,9); }
-          else if(this.menuSel===2){ this.aiCount=clamp(this.aiCount+(k==='arrowleft'?-1:1),0,5); }
-          audio.init(); audio.blip(360,0.05);
-        }
+        const items=this.getMenuItems();
+        if(k==='arrowup'||k==='w'){ this.menuSel=(this.menuSel+items.length-1)%items.length; audio.init(); audio.blip(300,0.05); }
+        else if(k==='arrowdown'||k==='s'){ this.menuSel=(this.menuSel+1)%items.length; audio.init(); audio.blip(300,0.05); }
+        else if(k==='arrowleft'){ items[this.menuSel].dec(); audio.init(); audio.blip(360,0.05); }
+        else if(k==='arrowright'){ items[this.menuSel].inc(); audio.init(); audio.blip(360,0.05); }
         else if(k==='enter'||k===' '){ this.startRace(); }
         else if(k==='m'){ this.toggleMute(); }
       } else if(this.state===STATE.RACE||this.state===STATE.COUNTDOWN){
@@ -769,7 +787,7 @@ class Game {
     // grab boost when available if roughly aligned
     // rubber-banding: fall back if far ahead of player, push if behind
     const diff=this.player.progress - car.progress;   // >0 => AI trails
-    car.powerMul=clamp(1 + diff*0.0011, 0.9, 1.16);
+    car.powerMul=clamp(1 + diff*DIFFICULTY[this.difficulty].band, 0.9, 1.16);
     // advance target as it gets close
     const near=t.center[(car.aiTargetIdx+1)%t.n];
     if(Math.hypot(near.x-car.x,near.y-car.y)<t.width*0.62){
@@ -1517,30 +1535,27 @@ class Game {
     ctx.textBaseline='top';
 
     const rec=this.best[TRACKS[this.trackIdx].name];
-    const items=[
-      {label:'Track', value:TRACKS[this.trackIdx].name, dec:()=>{this.trackIdx=(this.trackIdx+TRACKS.length-1)%TRACKS.length; this.setupTrack();}, inc:()=>{this.trackIdx=(this.trackIdx+1)%TRACKS.length; this.setupTrack();}},
-      {label:'Laps', value:this.totalLaps, dec:()=>{this.totalLaps=clamp(this.totalLaps-1,1,9);}, inc:()=>{this.totalLaps=clamp(this.totalLaps+1,1,9);}},
-      {label:'Opponents', value:this.aiCount, dec:()=>{this.aiCount=clamp(this.aiCount-1,0,5);}, inc:()=>{this.aiCount=clamp(this.aiCount+1,0,5);}},
-    ];
-    const baseY=VH*0.42;
+    const items=this.getMenuItems();
+    const baseY=VH*0.40;
     items.forEach((it,i)=>{
-      const y=baseY+i*48; const sel=i===this.menuSel;
+      const y=baseY+i*46; const sel=i===this.menuSel;
       ctx.textAlign='center';
       ctx.fillStyle=sel?'#ffcf3f':'#c7d2e0'; ctx.font=`${sel?'bold ':''}23px system-ui`;
       ctx.fillText(`${it.label}:  ${it.value}`,VW/2,y);
       // clickable arrows
-      const ah=34;
-      this.uiButton(VW/2-190,y-ah/2,ah,ah,'‹',()=>{this.menuSel=i; it.dec(); audio.blip(360,0.05);},{font:'bold 24px system-ui',fill:'rgba(255,255,255,0.05)'});
-      this.uiButton(VW/2+156,y-ah/2,ah,ah,'›',()=>{this.menuSel=i; it.inc(); audio.blip(360,0.05);},{font:'bold 24px system-ui',fill:'rgba(255,255,255,0.05)'});
+      const ah=32;
+      this.uiButton(VW/2-195,y-ah/2,ah,ah,'‹',()=>{this.menuSel=i; it.dec(); audio.blip(360,0.05);},{font:'bold 22px system-ui',fill:'rgba(255,255,255,0.05)'});
+      this.uiButton(VW/2+163,y-ah/2,ah,ah,'›',()=>{this.menuSel=i; it.inc(); audio.blip(360,0.05);},{font:'bold 22px system-ui',fill:'rgba(255,255,255,0.05)'});
     });
+    const afterY=baseY+items.length*46;
     // best record for selected track
     if(rec){
       ctx.textAlign='center'; ctx.font='13px system-ui'; ctx.fillStyle='#8ab9d0';
       const parts=[]; if(rec.lap) parts.push(`best lap ${fmtTime(rec.lap)}`); if(rec.drift) parts.push(`drift ${rec.drift.toLocaleString()}`);
-      if(parts.length) ctx.fillText(parts.join('   ·   '),VW/2,baseY+3*48+2);
+      if(parts.length) ctx.fillText(parts.join('   ·   '),VW/2,afterY+2);
     }
     // Race button
-    this.uiButton(VW/2-120,baseY+3*48+18,240,52,'▶  RACE',()=>{this.startRace();},{color:'#5ef08a',fill:'rgba(94,240,138,0.12)',stroke:'rgba(94,240,138,0.5)',font:'bold 24px system-ui'});
+    this.uiButton(VW/2-120,afterY+18,240,50,'▶  RACE',()=>{this.startRace();},{color:'#5ef08a',fill:'rgba(94,240,138,0.12)',stroke:'rgba(94,240,138,0.5)',font:'bold 24px system-ui'});
     ctx.fillStyle='#6a7a8c'; ctx.font='13px system-ui'; ctx.textAlign='center';
     const hint=this.showTouch
       ? 'tap ‹ › to change · pads to drive · ✋ handbrake · 🔥 nitro'
@@ -1561,11 +1576,30 @@ class Game {
     this.uiButton(bx,by,bw,40,(this.muted?'🔇':'🔊')+'  Sound',()=>{this.toggleMute();},{font:'16px system-ui',color:'#8ab9d0'});
   }
 
+  drawConfetti(){
+    if(!this.confetti){
+      this.confetti=[];
+      const cols=['#ff5d6c','#39d0ff','#5ef08a','#ffcf3f','#c77dff','#ff9f40'];
+      for(let i=0;i<160;i++) this.confetti.push({
+        x:rand(0,VW), y:rand(-VH,0), vx:rand(-40,40), vy:rand(90,220),
+        rot:rand(0,TAU), vr:rand(-6,6), w:rand(6,12), h:rand(3,6), c:cols[i%cols.length], sway:rand(0,TAU)});
+    }
+    const dt=1/60;
+    for(const p of this.confetti){
+      p.sway+=dt*4;
+      p.x+=(p.vx+Math.sin(p.sway)*30)*dt; p.y+=p.vy*dt; p.rot+=p.vr*dt;
+      if(p.y>VH+20){ p.y=-20; p.x=rand(0,VW); }
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle=p.c; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore();
+    }
+  }
+
   drawResults(){
     ctx.fillStyle='rgba(0,0,0,0.72)'; ctx.fillRect(0,0,VW,VH);
+    const won=this.player.place===1;
+    if(won) this.drawConfetti();
     ctx.textAlign='center';
     ctx.fillStyle='#ffcf3f'; ctx.font='bold 52px system-ui';
-    const won=this.player.place===1;
     ctx.fillText(won?'🏆  YOU WIN!':`Finished ${ordinal(this.player.place)}`,VW/2,VH*0.2);
     const order=[...this.cars].sort((a,b)=>a.place-b.place);
     ctx.font='20px system-ui';
