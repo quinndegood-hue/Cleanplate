@@ -493,8 +493,70 @@ class Game {
     this.best=this._loadBest();
     this.menuSel=0;
     this.muted=false;
+    this.showTouch = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) || ('ontouchstart' in window) || navigator.maxTouchPoints>0;
+    this.touch={left:false,right:false,gas:false,brake:false,hbrake:false};
+    this._pointers={}; // pointerId -> button id
     this._bindMenu();
+    this._bindTouch();
     this.setupTrack();
+  }
+  _touchButtons(){
+    // circular on-screen controls (screen space)
+    const r=Math.max(34, Math.min(VW,VH)*0.075);
+    const by=VH-r-24;
+    return [
+      {id:'left',  x:r+24,        y:by, r, label:'◀'},
+      {id:'right', x:r*3+44,      y:by, r, label:'▶'},
+      {id:'brake', x:VW-r*3-44,   y:by, r, label:'▼', color:'#ff5d6c'},
+      {id:'gas',   x:VW-r-24,     y:by, r:r*1.15, label:'▲', color:'#5ef08a'},
+      {id:'hbrake',x:VW/2,        y:VH-r-24, r:r*0.85, label:'✋', color:'#ffcf3f'},
+    ];
+  }
+  _pauseBtn(){ return {x:VW/2, y:34, r:20}; }
+  _hitButton(px,py){
+    for(const b of this._touchButtons()){
+      if((px-b.x)**2+(py-b.y)**2 <= (b.r*1.15)**2) return b.id;
+    }
+    return null;
+  }
+  _bindTouch(){
+    const toXY=e=>{ const rect=canvas.getBoundingClientRect(); return [e.clientX-rect.left, e.clientY-rect.top]; };
+    const inPause=(x,y)=>{ const p=this._pauseBtn(); return (x-p.x)**2+(y-p.y)**2<=p.r*p.r; };
+    const down=e=>{
+      audio.init();
+      const [x,y]=toXY(e);
+      // menu / results: tap to advance
+      if(this.state===STATE.MENU){ this.startRace(); return; }
+      if(this.state===STATE.RESULTS){ this.state=STATE.MENU; return; }
+      if(this.state===STATE.PAUSE){ this.state=STATE.RACE; return; }
+      if(this.showTouch){
+        if((this.state===STATE.RACE||this.state===STATE.COUNTDOWN) && inPause(x,y)){ this.state=STATE.PAUSE; return; }
+        const b=this._hitButton(x,y);
+        if(b){ this._pointers[e.pointerId]=b; this.touch[b]=true; this._recompute(); }
+      }
+    };
+    const up=e=>{
+      const b=this._pointers[e.pointerId];
+      if(b){ delete this._pointers[e.pointerId]; this._recompute(); }
+    };
+    const move=e=>{
+      if(!(e.pointerId in this._pointers)) return;
+      const [x,y]=toXY(e);
+      const b=this._hitButton(x,y);
+      const old=this._pointers[e.pointerId];
+      if(b!==old){ if(b){ this._pointers[e.pointerId]=b; } else { delete this._pointers[e.pointerId]; } this._recompute(); }
+    };
+    canvas.addEventListener('pointerdown',down);
+    canvas.addEventListener('pointerup',up);
+    canvas.addEventListener('pointercancel',up);
+    canvas.addEventListener('pointerleave',up);
+    canvas.addEventListener('pointermove',move);
+  }
+  _recompute(){
+    // rebuild touch flags from active pointers
+    const t={left:false,right:false,gas:false,brake:false,hbrake:false};
+    for(const id in this._pointers){ t[this._pointers[id]]=true; }
+    this.touch=t;
   }
   _loadBest(){
     try{ return JSON.parse(localStorage.getItem('apexdrift_best')||'{}'); }catch(e){ return {}; }
@@ -583,11 +645,12 @@ class Game {
     // player controls
     const p=this.player;
     if(!p.finished){
-      p.throttle = (keys['arrowup']||keys['w'])?1:0;
-      p.brake = (keys['arrowdown']||keys['s'])?1:0;
-      let st=0; if(keys['arrowleft']||keys['a'])st-=1; if(keys['arrowright']||keys['d'])st+=1;
+      const tc=this.touch;
+      p.throttle = (keys['arrowup']||keys['w']||tc.gas)?1:0;
+      p.brake = (keys['arrowdown']||keys['s']||tc.brake)?1:0;
+      let st=0; if(keys['arrowleft']||keys['a']||tc.left)st-=1; if(keys['arrowright']||keys['d']||tc.right)st+=1;
       p.steer=lerp(p.steer,st,0.35);
-      p.handbrake=!!keys['space'];
+      p.handbrake=!!keys['space']||tc.hbrake;
     } else { p.throttle=0; p.brake=0.4; p.steer=0; p.handbrake=false; }
 
     // AI
@@ -1047,7 +1110,8 @@ class Game {
     ctx.textAlign='left';
 
     // speedometer bottom-right
-    this.drawSpeedo(VW-96,VH-96,72,p);
+    if(this.showTouch) this.drawSpeedo(VW-60,138,44,p);
+    else this.drawSpeedo(VW-96,VH-96,72,p);
 
     // boost meter
     if(p.boost>0){
@@ -1075,8 +1139,31 @@ class Game {
       ctx.textAlign='left'; ctx.textBaseline='top';
     }
 
+    if(this.showTouch && (this.state===STATE.RACE||this.state===STATE.COUNTDOWN)) this.drawTouchControls();
+
     if(this.state===STATE.PAUSE) this.drawPause();
     if(this.state===STATE.RESULTS) this.drawResults();
+  }
+  drawTouchControls(){
+    for(const b of this._touchButtons()){
+      const active=this.touch[b.id];
+      ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,TAU);
+      ctx.fillStyle=active?'rgba(255,255,255,0.28)':'rgba(20,26,36,0.42)';
+      ctx.fill();
+      ctx.lineWidth=2; ctx.strokeStyle=b.color?b.color:'rgba(255,255,255,0.5)';
+      ctx.globalAlpha=active?1:0.7; ctx.stroke(); ctx.globalAlpha=1;
+      ctx.fillStyle=b.color||'#e8eef7';
+      ctx.font=`${Math.round(b.r*0.9)}px system-ui`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(b.label,b.x,b.y+1);
+    }
+    // pause button
+    const pb=this._pauseBtn();
+    ctx.beginPath(); ctx.arc(pb.x,pb.y,pb.r,0,TAU);
+    ctx.fillStyle='rgba(20,26,36,0.5)'; ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2; ctx.stroke();
+    ctx.fillStyle='#e8eef7'; ctx.fillRect(pb.x-6,pb.y-7,4,14); ctx.fillRect(pb.x+2,pb.y-7,4,14);
+    ctx.textAlign='left'; ctx.textBaseline='top';
   }
 
   drawDriftScore(){
@@ -1132,7 +1219,9 @@ class Game {
 
   drawMinimap(){
     const t=this.track;
-    const mw=150, mh=150, mx=12, my=VH-mh-12;
+    const touch=this.showTouch;
+    const mw=touch?96:150, mh=touch?96:150;
+    const mx=12, my=touch?104:VH-mh-12;
     // compute bounds
     let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
     for(const c of t.center){ minx=Math.min(minx,c.x);miny=Math.min(miny,c.y);maxx=Math.max(maxx,c.x);maxy=Math.max(maxy,c.y);}
@@ -1182,9 +1271,12 @@ class Game {
       ctx.fillText(`${it.label}:  ‹ ${it.value} ›`,VW/2,y);
     });
     ctx.fillStyle='#5ef08a'; ctx.font='bold 22px system-ui';
-    ctx.fillText('▶  Press ENTER to Race',VW/2,baseY+3*46+24);
+    ctx.fillText(this.showTouch?'▶  Tap Anywhere to Race':'▶  Press ENTER to Race',VW/2,baseY+3*46+24);
     ctx.fillStyle='#6a7a8c'; ctx.font='13px system-ui';
-    ctx.fillText('↑↓ select · ←→ change · WASD/Arrows drive · SPACE handbrake · P pause · M mute',VW/2,VH-30);
+    const hint=this.showTouch
+      ? 'on-screen pads to drive · ✋ handbrake · tap ❚❚ to pause'
+      : '↑↓ select · ←→ change · WASD/Arrows drive · SPACE handbrake · P pause · M mute';
+    ctx.fillText(hint,VW/2,VH-30);
     ctx.textAlign='left';
   }
 
