@@ -644,7 +644,7 @@ class Game {
       const off=(col===0?-1:1)*t.width*0.22;
       const car=new Car(c.x+nr.x*off, c.y+nr.y*off, t.startAngle, CAR_COLORS[i%CAR_COLORS.length], i===0);
       car.nextCP=0; car.aiTargetIdx=t.startIdx;
-      if(i>0){ const dm=DIFFICULTY[this.difficulty]; car.aiSkill=rand(dm.skill[0],dm.skill[1]); car.aiThrottleNoise=rand(0.9,1); }
+      if(i>0){ const dm=DIFFICULTY[this.difficulty]; car.aiSkill=rand(dm.skill[0],dm.skill[1]); car.aiThrottleNoise=rand(0.9,1); car.laneBias=rand(-0.26,0.26); }
       this.cars.push(car);
     }
     this.player=this.cars[0];
@@ -793,8 +793,11 @@ class Game {
     // apex-seeking: bias target toward inside of the corner
     const cross=tA.x*tB.y-tA.y*tB.x;
     const nr=t.nrm[tgtIdx];
-    const bias=clamp(curve*1.4,0,1)*t.width*0.3*(cross>0?-1:1);
-    const aim={x:tgt.x+nr.x*bias, y:tgt.y+nr.y*bias};
+    // apex bias on corners, plus a steady personal lane offset on straights
+    const apexBias=clamp(curve*1.4,0,1)*t.width*0.3*(cross>0?-1:1);
+    const laneBias=(car.laneBias||0)*t.width*(1-clamp(curve*2,0,1)); // fades into the apex line in corners
+    const off=apexBias+laneBias;
+    const aim={x:tgt.x+nr.x*off, y:tgt.y+nr.y*off};
     const desired=Math.atan2(aim.y-car.y, aim.x-car.x);
     let d=angDiff(car.angle,desired);
     car.steer=clamp(d*1.7,-1,1);
