@@ -470,15 +470,39 @@ class Audio {
       this.filter=this.ctx.createBiquadFilter(); this.filter.type='lowpass'; this.filter.frequency.value=800;
       this.osc.connect(this.filter); this.filter.connect(this.oscGain); this.oscGain.connect(this.master);
       this.osc.frequency.value=60; this.osc.start();
+      // a second detuned oscillator adds body to the engine
+      this.osc2=this.ctx.createOscillator(); this.osc2.type='square'; this.osc2.frequency.value=30;
+      this.osc2Gain=this.ctx.createGain(); this.osc2Gain.gain.value=0;
+      this.osc2.connect(this.osc2Gain); this.osc2Gain.connect(this.master); this.osc2.start();
+      // tire squeal: filtered noise
+      const buf=this.ctx.createBuffer(1, this.ctx.sampleRate*1.0, this.ctx.sampleRate);
+      const dat=buf.getChannelData(0); for(let i=0;i<dat.length;i++) dat[i]=Math.random()*2-1;
+      this.noise=this.ctx.createBufferSource(); this.noise.buffer=buf; this.noise.loop=true;
+      this.squealFilter=this.ctx.createBiquadFilter(); this.squealFilter.type='bandpass'; this.squealFilter.frequency.value=1400; this.squealFilter.Q.value=6;
+      this.squealGain=this.ctx.createGain(); this.squealGain.gain.value=0;
+      this.noise.connect(this.squealFilter); this.squealFilter.connect(this.squealGain); this.squealGain.connect(this.master);
+      this.noise.start();
       this.started=true;
     }catch(e){ this.enabled=false; }
   }
   engine(spin, drifting){
     if(!this.started||!this.enabled) return;
-    const f=60+spin*260;
-    this.osc.frequency.setTargetAtTime(f,this.ctx.currentTime,0.05);
-    this.oscGain.gain.setTargetAtTime(0.12+spin*0.14,this.ctx.currentTime,0.08);
-    this.filter.frequency.setTargetAtTime(500+spin*2600,this.ctx.currentTime,0.05);
+    // fake a 5-gear box: pitch rises within a gear then resets up an octave
+    const gears=5; const g=Math.min(gears-1, Math.floor(spin*gears));
+    const within=(spin*gears)-g;              // 0..1 inside current gear
+    const f=70 + (60 + within*200) + g*8;
+    const t=this.ctx.currentTime;
+    this.osc.frequency.setTargetAtTime(f,t,0.04);
+    this.oscGain.gain.setTargetAtTime(0.12+spin*0.14,t,0.08);
+    this.filter.frequency.setTargetAtTime(500+spin*2600,t,0.05);
+    this.osc2.frequency.setTargetAtTime(f*0.5,t,0.04);
+    this.osc2Gain.gain.setTargetAtTime(0.05+spin*0.07,t,0.08);
+  }
+  squeal(amount){
+    if(!this.started||!this.enabled) return;
+    const t=this.ctx.currentTime;
+    this.squealGain.gain.setTargetAtTime(clamp(amount,0,1)*0.09,t,0.05);
+    this.squealFilter.frequency.setTargetAtTime(1100+amount*900,t,0.05);
   }
   blip(freq,dur,type='square',vol=0.3){
     if(!this.started||!this.enabled) return;
@@ -651,6 +675,7 @@ class Game {
   /* --------------------------- update ---------------------------------- */
   update(dt){
     this.time+=dt;
+    if(this.state!==STATE.RACE){ audio.squeal(0); if(this.state!==STATE.COUNTDOWN) audio.engine(0.03,false); }
     if(this.state===STATE.COUNTDOWN){
       this.countdown-=dt;
       if(Math.ceil(this.countdown)!==Math.ceil(this.countdown+dt)){
@@ -702,8 +727,10 @@ class Game {
     this.updateCamera(dt);
     this.updatePlaces();
 
-    // engine audio from player
+    // engine + tire audio from player
     audio.engine(this.player.engineSpin, this.player.driftAmt>0.5);
+    const squealAmt=(this.player.driftAmt>0.4 && this.player.speed>70 && this.track.onRoad(this.player.x,this.player.y))?clamp(this.player.driftAmt,0,1):0;
+    audio.squeal(squealAmt);
 
     // race finished?
     if(this.finishOrder.length===this.cars.length){
@@ -1236,6 +1263,9 @@ class Game {
     // minimap
     this.drawMinimap();
 
+    // position leaderboard (desktop)
+    if(!this.showTouch) this.drawLeaderboard();
+
     // drift score / combo
     this.drawDriftScore();
 
@@ -1417,6 +1447,28 @@ class Game {
     ctx.font='bold 26px system-ui'; ctx.fillText(kmh,0,-2);
     ctx.font='10px system-ui'; ctx.fillStyle='#8ab9d0'; ctx.fillText('KM/H',0,18);
     ctx.restore();
+    ctx.textAlign='left'; ctx.textBaseline='top';
+  }
+
+  drawLeaderboard(){
+    if(this.cars.length<2) return;
+    const order=[...this.cars].sort((a,b)=>a.place-b.place);
+    const rowH=22, w=170, x=VW-w-10, y=84;
+    const h=order.length*rowH+10;
+    panel(x,y,w,h);
+    ctx.textBaseline='middle';
+    order.forEach((c,i)=>{
+      const ry=y+10+i*rowH+rowH/2-4;
+      ctx.textAlign='left'; ctx.font='bold 13px system-ui'; ctx.fillStyle='#aab6c8';
+      ctx.fillText(ordinal(i+1),x+10,ry);
+      // color chip
+      ctx.fillStyle=c.color; roundRect(ctx,x+40,ry-6,14,11,3); ctx.fill();
+      ctx.fillStyle=c.isPlayer?'#ffcf3f':'#c7d2e0'; ctx.font=`${c.isPlayer?'bold ':''}13px system-ui`;
+      ctx.fillText(c.isPlayer?'YOU':'CPU',x+60,ry);
+      // lap indicator
+      ctx.textAlign='right'; ctx.fillStyle='#7a8a9c'; ctx.font='11px system-ui';
+      ctx.fillText(c.finished?'FIN':`L${Math.min(c.lap+1,this.totalLaps)}`,x+w-10,ry);
+    });
     ctx.textAlign='left'; ctx.textBaseline='top';
   }
 
