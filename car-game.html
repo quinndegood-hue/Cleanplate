@@ -763,7 +763,7 @@ class Game {
     // race finished? end when everyone's in, or a grace period after the
     // player finishes (so a stuck AI can never soft-lock the race)
     if(this.player.finished){
-      if(this.finishGrace===undefined) this.finishGrace=7;
+      if(this.finishGrace===undefined) this.finishGrace=12;
       this.finishGrace-=dt;
     }
     if(this.finishOrder.length===this.cars.length || (this.player.finished && this.finishGrace<=0)){
@@ -779,17 +779,21 @@ class Game {
 
   updateAI(car,dt){
     const t=this.track;
-    // look ahead along the racing line, scaled by speed
-    const lookAhead = 9 + Math.floor(car.speed/26);
-    let tgtIdx=(car.aiTargetIdx+lookAhead)%t.n;
+    // Aim ahead from the car's CURRENT nearest point on the racing line.
+    // (Deriving the target from live position each frame avoids the target
+    // index desyncing from the car and making it orbit a fixed point.)
+    const {index}=t.nearestIndex(car.x,car.y);
+    car.aiTargetIdx=index;
+    const lookAhead = 8 + Math.floor(car.speed/26);
+    const tgtIdx=(index+lookAhead)%t.n;
     const tgt=t.center[tgtIdx];
     // estimate upcoming corner sharpness by comparing tangents ahead
-    const tA=t.tan[car.aiTargetIdx%t.n], tB=t.tan[tgtIdx];
+    const tA=t.tan[index], tB=t.tan[tgtIdx];
     const curve=Math.abs(angDiff(Math.atan2(tA.y,tA.x),Math.atan2(tB.y,tB.x)));
     // apex-seeking: bias target toward inside of the corner
     const cross=tA.x*tB.y-tA.y*tB.x;
     const nr=t.nrm[tgtIdx];
-    const bias=clamp(curve*1.4,0,1)*t.width*0.32*(cross>0?-1:1);
+    const bias=clamp(curve*1.4,0,1)*t.width*0.3*(cross>0?-1:1);
     const aim={x:tgt.x+nr.x*bias, y:tgt.y+nr.y*bias};
     const desired=Math.atan2(aim.y-car.y, aim.x-car.x);
     let d=angDiff(car.angle,desired);
@@ -797,19 +801,15 @@ class Game {
     // throttle: ease off for sharp turns; skill & noise vary drivers
     const sharp=Math.abs(d)+curve*0.6;
     let thr=1 - clamp((sharp-0.22)*1.35,0,0.72);
-    thr*=car.aiSkill*(0.9+0.1*Math.sin(this.time*1.3+car.x*0.01));
-    car.throttle=clamp(thr,0,1);
-    car.brake= sharp>0.85 && car.speed>210 ?0.65:0;
-    car.handbrake= sharp>1.05 && car.speed>240;
-    // grab boost when available if roughly aligned
+    thr*=car.aiSkill*(0.92+0.08*Math.sin(this.time*1.3+car.x*0.01));
+    car.throttle=clamp(thr,0.25,1);   // never fully lift, so it can't stall out
+    car.brake= sharp>0.9 && car.speed>230 ?0.6:0;
+    car.handbrake= sharp>1.15 && car.speed>260;
     // rubber-banding: fall back if far ahead of player, push if behind
     const diff=this.player.progress - car.progress;   // >0 => AI trails
     car.powerMul=clamp(1 + diff*DIFFICULTY[this.difficulty].band, 0.9, 1.16);
-    // advance target as it gets close
-    const near=t.center[(car.aiTargetIdx+1)%t.n];
-    if(Math.hypot(near.x-car.x,near.y-car.y)<t.width*0.62){
-      car.aiTargetIdx=(car.aiTargetIdx+1)%t.n;
-    }
+    // once the player has finished, trailing cars sprint so they finish too
+    if(this.player.finished && !car.finished){ car.powerMul=1.16; car.throttle=Math.max(car.throttle,0.85*car.aiSkill+0.1); }
   }
 
   trackCarProgress(car){
