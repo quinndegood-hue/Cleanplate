@@ -514,7 +514,7 @@ class Game {
     this.menuSel=0;
     this.muted=false;
     this.showTouch = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) || ('ontouchstart' in window) || navigator.maxTouchPoints>0;
-    this.touch={left:false,right:false,gas:false,brake:false,hbrake:false};
+    this.touch={left:false,right:false,gas:false,brake:false,hbrake:false,nitro:false};
     this._pointers={}; // pointerId -> button id
     this._bindMenu();
     this._bindTouch();
@@ -529,7 +529,8 @@ class Game {
       {id:'right', x:r*3+44,      y:by, r, label:'▶'},
       {id:'brake', x:VW-r*3-44,   y:by, r, label:'▼', color:'#ff5d6c'},
       {id:'gas',   x:VW-r-24,     y:by, r:r*1.15, label:'▲', color:'#5ef08a'},
-      {id:'hbrake',x:VW/2,        y:VH-r-24, r:r*0.85, label:'✋', color:'#ffcf3f'},
+      {id:'hbrake',x:VW/2-r*1.15, y:VH-r-24, r:r*0.85, label:'✋', color:'#ffcf3f'},
+      {id:'nitro', x:VW/2+r*1.15, y:VH-r-24, r:r*0.85, label:'🔥', color:'#39d0ff'},
     ];
   }
   _pauseBtn(){ return {x:VW/2, y:34, r:20}; }
@@ -574,7 +575,7 @@ class Game {
   }
   _recompute(){
     // rebuild touch flags from active pointers
-    const t={left:false,right:false,gas:false,brake:false,hbrake:false};
+    const t={left:false,right:false,gas:false,brake:false,hbrake:false,nitro:false};
     for(const id in this._pointers){ t[this._pointers[id]]=true; }
     this.touch=t;
   }
@@ -672,7 +673,8 @@ class Game {
       let st=0; if(keys['arrowleft']||keys['a']||tc.left)st-=1; if(keys['arrowright']||keys['d']||tc.right)st+=1;
       p.steer=lerp(p.steer,st,0.35);
       p.handbrake=!!keys['space']||tc.hbrake;
-    } else { p.throttle=0; p.brake=0.4; p.steer=0; p.handbrake=false; }
+      p.wantNitro=!!keys['shift']||tc.nitro;
+    } else { p.throttle=0; p.brake=0.4; p.steer=0; p.handbrake=false; p.wantNitro=false; }
 
     // AI
     for(let i=1;i<this.cars.length;i++) this.updateAI(this.cars[i],dt);
@@ -690,6 +692,7 @@ class Game {
     this.checkObstacles(dt);
 
     this.updateDriftScore(dt);
+    this.updateNitro(dt);
     this.updateWeather(dt);
     this.updateWrongWay(dt);
     this.particles.update(dt);
@@ -836,6 +839,7 @@ class Game {
         if(p.cool>0){ p.cool-=dt; continue; }
         if((car.x-p.x)**2+(car.y-p.y)**2 < 30*30){
           car.boost=Math.max(car.boost,1.8);
+          if(car.isPlayer) car.nitro=clamp((car.nitro||0)+0.3,0,1);
           p.cool=1.2;
           if(car.isPlayer){ audio.blip(720,0.12,'square',0.28); audio.blip(1080,0.14,'square',0.2); }
           for(let i=0;i<6;i++) this.particles.spark(car.x,car.y,rand(0,TAU));
@@ -877,6 +881,21 @@ class Game {
       p.chainFade=Math.max(0,p.chainFade-dt*1.4);
       if(p.bankFlash>0) p.bankFlash-=dt;
     }
+  }
+
+  updateNitro(dt){
+    const p=this.player;
+    if(p.nitro===undefined) p.nitro=0;
+    // fill from drifting
+    if(p.driftAmt>0.5 && p.speed>90 && this.track.onRoad(p.x,p.y)){
+      p.nitro=clamp(p.nitro + dt*0.16*clamp(p.driftAmt,0,1.4), 0, 1);
+    }
+    // deploy
+    if(p.wantNitro && p.nitro>0.02 && !p.finished){
+      p.nitro=Math.max(0,p.nitro - dt*0.42);
+      p.boost=Math.max(p.boost,0.12);   // keep boost visuals/physics active
+      if(!p.nitroSfx){ audio.blip(300,0.12,'sawtooth',0.2); p.nitroSfx=true; }
+    } else { p.nitroSfx=false; }
   }
 
   updateWeather(dt){
@@ -1186,12 +1205,8 @@ class Game {
     if(this.showTouch) this.drawSpeedo(VW-60,138,44,p);
     else this.drawSpeedo(VW-96,VH-96,72,p);
 
-    // boost meter
-    if(p.boost>0){
-      ctx.fillStyle='rgba(57,208,255,0.85)';
-      ctx.fillRect(VW/2-60,VH-24,120*clamp(p.boost/2,0,1),8);
-      ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.strokeRect(VW/2-60,VH-24,120,8);
-    }
+    // nitro meter
+    this.drawNitro(p);
 
     // minimap
     this.drawMinimap();
@@ -1247,6 +1262,28 @@ class Game {
     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2; ctx.stroke();
     ctx.fillStyle='#e8eef7'; ctx.fillRect(pb.x-6,pb.y-7,4,14); ctx.fillRect(pb.x+2,pb.y-7,4,14);
     ctx.textAlign='left'; ctx.textBaseline='top';
+  }
+
+  drawNitro(p){
+    const n=p.nitro||0;
+    const bw=200, bh=13;
+    const bx=VW/2-bw/2, by=this.showTouch?62:VH-30;
+    ctx.fillStyle='rgba(10,14,20,0.6)'; roundRect(ctx,bx-3,by-3,bw+6,bh+6,5); ctx.fill();
+    const ready=n>0.02;
+    const deploying=p.wantNitro && ready;
+    const g=ctx.createLinearGradient(bx,0,bx+bw,0);
+    if(deploying){ g.addColorStop(0,'#ffcf3f'); g.addColorStop(1,'#ff7a1a'); }
+    else { g.addColorStop(0,'#39d0ff'); g.addColorStop(1,'#5ef0e0'); }
+    ctx.fillStyle=g;
+    roundRect(ctx,bx,by,bw*n,bh,4); ctx.fill();
+    ctx.strokeStyle=ready?'rgba(255,255,255,0.55)':'rgba(255,255,255,0.2)'; ctx.lineWidth=1;
+    roundRect(ctx,bx,by,bw,bh,4); ctx.stroke();
+    if(!this.showTouch){
+      ctx.textAlign='center'; ctx.font='bold 10px system-ui';
+      ctx.fillStyle=ready?'#ffffff':'#6a7a8c';
+      ctx.fillText('NITRO  (SHIFT)',VW/2,by-13);
+      ctx.textAlign='left';
+    }
   }
 
   drawDriftScore(){
