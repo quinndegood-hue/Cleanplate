@@ -102,6 +102,20 @@ const TRACKS = [
          {x:750,y:450},{x:300,y:700},{x:-300,y:650},{x:-500,y:300},
          {x:-850,y:100},{x:-700,y:-350},{x:-300,y:-500}]
   },
+  {
+    name:"Coastal Sprint", theme:"dawn", width:120,
+    pts:[{x:-900,y:-200},{x:-500,y:-450},{x:-100,y:-350},{x:250,y:-500},
+         {x:650,y:-450},{x:950,y:-150},{x:800,y:200},{x:450,y:300},
+         {x:600,y:600},{x:150,y:700},{x:-350,y:600},{x:-450,y:250},
+         {x:-800,y:200}]
+  },
+  {
+    name:"Canyon Storm", theme:"storm", width:135,
+    pts:[{x:0,y:-750},{x:400,y:-650},{x:350,y:-250},{x:750,y:-150},
+         {x:900,y:250},{x:550,y:400},{x:700,y:750},{x:150,y:800},
+         {x:-250,y:600},{x:-100,y:250},{x:-550,y:300},{x:-800,y:0},
+         {x:-600,y:-450},{x:-250,y:-550}]
+  },
 ];
 
 const THEME = {
@@ -111,6 +125,10 @@ const THEME = {
          sky:'#b56a4a', rumble:'#f0e0d0', rumble2:'#c0504b', line:'#f0c040'},
   night:{grass:'#1c2a1c', grass2:'#1a271a', road:'#2b2f38', road2:'#262a33',
          sky:'#0a1020', rumble:'#c8c8d0', rumble2:'#a03d48', line:'#e0c840'},
+  dawn: {grass:'#4a6b4e', grass2:'#446348', road:'#454049', road2:'#3f3a43',
+         sky:'#e0a070', rumble:'#f4ead8', rumble2:'#c85a5a', line:'#ffd060'},
+  storm:{grass:'#33403a', grass2:'#2f3b35', road:'#33343c', road2:'#2e2f36',
+         sky:'#3a4152', rumble:'#d8d8dc', rumble2:'#b04848', line:'#d8d060'},
 };
 
 class Track {
@@ -312,11 +330,13 @@ class Car {
 
     const onRoad = track.onRoad(this.x,this.y);
     let gripBase = onRoad?1:0.55;
+    if(track.def.theme==='storm') gripBase*=0.86;  // wet tarmac
     if(this.onOil) gripBase*=0.32;   // oil slick: sudden loss of grip
 
     // Engine force
-    const maxSpeed = 430 * (this.boost>0?1.5:1);
-    const enginePower = 720 * (this.boost>0?1.9:1);
+    const pm = this.powerMul||1;
+    const maxSpeed = 430 * (this.boost>0?1.5:1) * (0.97+0.03*pm);
+    const enginePower = 720 * (this.boost>0?1.9:1) * pm;
     const reversePower = 300;
     let drive=0;
     if(this.throttle>0){
@@ -636,6 +656,7 @@ class Game {
       }
       if(this.countdown<=0){ this.state=STATE.RACE; for(const c of this.cars) c.lapStart=0; }
       this.updateCarsFrozen(dt);
+      this.updateWeather(dt);
       this.updateCamera(dt);
       return;
     }
@@ -669,6 +690,8 @@ class Game {
     this.checkObstacles(dt);
 
     this.updateDriftScore(dt);
+    this.updateWeather(dt);
+    this.updateWrongWay(dt);
     this.particles.update(dt);
     this.updateCamera(dt);
     this.updatePlaces();
@@ -688,24 +711,35 @@ class Game {
 
   updateAI(car,dt){
     const t=this.track;
-    // look ahead along the racing line
-    const lookAhead = 10 + Math.floor(car.speed/28);
+    // look ahead along the racing line, scaled by speed
+    const lookAhead = 9 + Math.floor(car.speed/26);
     let tgtIdx=(car.aiTargetIdx+lookAhead)%t.n;
     const tgt=t.center[tgtIdx];
-    // aim toward point slightly on inside of corner using normal offset from curvature
-    const desired=Math.atan2(tgt.y-car.y, tgt.x-car.x);
+    // estimate upcoming corner sharpness by comparing tangents ahead
+    const tA=t.tan[car.aiTargetIdx%t.n], tB=t.tan[tgtIdx];
+    const curve=Math.abs(angDiff(Math.atan2(tA.y,tA.x),Math.atan2(tB.y,tB.x)));
+    // apex-seeking: bias target toward inside of the corner
+    const cross=tA.x*tB.y-tA.y*tB.x;
+    const nr=t.nrm[tgtIdx];
+    const bias=clamp(curve*1.4,0,1)*t.width*0.32*(cross>0?-1:1);
+    const aim={x:tgt.x+nr.x*bias, y:tgt.y+nr.y*bias};
+    const desired=Math.atan2(aim.y-car.y, aim.x-car.x);
     let d=angDiff(car.angle,desired);
-    car.steer=clamp(d*1.6,-1,1);
-    // throttle: slow for sharp turns
-    const sharp=Math.abs(d);
-    let thr=1 - clamp((sharp-0.25)*1.4,0,0.75);
-    thr*=car.aiSkill;
-    car.throttle=thr;
-    car.brake= sharp>0.9 && car.speed>200 ?0.6:0;
-    car.handbrake= sharp>1.1 && car.speed>230;
+    car.steer=clamp(d*1.7,-1,1);
+    // throttle: ease off for sharp turns; skill & noise vary drivers
+    const sharp=Math.abs(d)+curve*0.6;
+    let thr=1 - clamp((sharp-0.22)*1.35,0,0.72);
+    thr*=car.aiSkill*(0.9+0.1*Math.sin(this.time*1.3+car.x*0.01));
+    car.throttle=clamp(thr,0,1);
+    car.brake= sharp>0.85 && car.speed>210 ?0.65:0;
+    car.handbrake= sharp>1.05 && car.speed>240;
+    // grab boost when available if roughly aligned
+    // rubber-banding: fall back if far ahead of player, push if behind
+    const diff=this.player.progress - car.progress;   // >0 => AI trails
+    car.powerMul=clamp(1 + diff*0.0011, 0.9, 1.16);
     // advance target as it gets close
     const near=t.center[(car.aiTargetIdx+1)%t.n];
-    if(Math.hypot(near.x-car.x,near.y-car.y)<t.width*0.6){
+    if(Math.hypot(near.x-car.x,near.y-car.y)<t.width*0.62){
       car.aiTargetIdx=(car.aiTargetIdx+1)%t.n;
     }
   }
@@ -845,6 +879,44 @@ class Game {
     }
   }
 
+  updateWeather(dt){
+    const storm=this.track.def.theme==='storm';
+    if(!storm){ this.rain=null; this.flash=0; return; }
+    if(!this.rain){
+      this.rain=[];
+      for(let i=0;i<220;i++) this.rain.push({x:rand(0,VW),y:rand(0,VH),l:rand(10,20),s:rand(700,1100)});
+      this.lightTimer=rand(2,6);
+    }
+    for(const d of this.rain){
+      d.y+=d.s*dt; d.x-=d.s*0.28*dt;
+      if(d.y>VH){ d.y=-10; d.x=rand(0,VW+200); }
+      if(d.x<-20){ d.x+=VW+40; }
+    }
+    this.lightTimer-=dt;
+    if(this.lightTimer<=0){ this.flash=1; this.lightTimer=rand(3,9); audio.blip(60,0.5,'sawtooth',0.12); }
+    if(this.flash>0) this.flash=Math.max(0,this.flash-dt*2.2);
+  }
+  drawWeather(){
+    if(!this.rain) return;
+    if(this.flash>0){ ctx.fillStyle=`rgba(220,230,255,${this.flash*0.35})`; ctx.fillRect(0,0,VW,VH); }
+    ctx.strokeStyle='rgba(180,200,230,0.35)'; ctx.lineWidth=1.4;
+    ctx.beginPath();
+    for(const d of this.rain){ ctx.moveTo(d.x,d.y); ctx.lineTo(d.x-d.l*0.28,d.y+d.l); }
+    ctx.stroke();
+  }
+
+  updateWrongWay(dt){
+    const p=this.player;
+    if(p.wrongTimer===undefined) p.wrongTimer=0;
+    if(p.speed>60 && !p.finished){
+      const {index}=this.track.nearestIndex(p.x,p.y);
+      const tan=this.track.tan[index];
+      const dot=(p.vx*tan.x+p.vy*tan.y)/(p.speed||1);
+      if(dot<-0.4) p.wrongTimer=Math.min(1.5,p.wrongTimer+dt);
+      else p.wrongTimer=Math.max(0,p.wrongTimer-dt*2);
+    } else p.wrongTimer=Math.max(0,p.wrongTimer-dt*2);
+  }
+
   updateCamera(dt){
     const p=this.player;
     // lead the camera slightly in the direction of travel
@@ -902,6 +974,7 @@ class Game {
       vg.addColorStop(0,'rgba(0,0,0,0)');
       vg.addColorStop(1,`rgba(0,0,0,${dark})`);
       ctx.fillStyle=vg; ctx.fillRect(0,0,VW,VH);
+      this.drawWeather();
     }
 
     // HUD (screen space, not affected by camera)
@@ -1125,6 +1198,16 @@ class Game {
 
     // drift score / combo
     this.drawDriftScore();
+
+    // wrong-way warning
+    if(this.player.wrongTimer>0.5 && this.state===STATE.RACE){
+      ctx.textAlign='center';
+      const blink=0.5+0.5*Math.sin(this.time*12);
+      ctx.globalAlpha=blink;
+      ctx.fillStyle='#ff5d6c'; ctx.font='bold 30px system-ui';
+      ctx.fillText('⚠ WRONG WAY',VW/2,VH*0.34);
+      ctx.globalAlpha=1; ctx.textAlign='left';
+    }
 
     // countdown overlay
     if(this.state===STATE.COUNTDOWN){
